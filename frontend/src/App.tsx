@@ -17,6 +17,7 @@ import MyInvestigationsPage from "@/pages/my-investigations"
 import NotFoundPage from "@/pages/not-found"
 import PitchPage from "@/pages/pitch"
 import SavedCasesPage from "@/pages/saved-cases"
+import SendPage from "@/pages/send"
 import SettingsPage from "@/pages/settings"
 import SignupPage from "@/pages/signup"
 import ThreatIntelligencePage from "@/pages/threat-intelligence"
@@ -44,6 +45,7 @@ function App() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/investigate" element={<InvestigatePage />} />
+            <Route path="/send" element={<SendPage />} />
             <Route path="/cases" element={<CasesPage />} />
             <Route path="/cases/:id" element={<CaseDetailPage />} />
             <Route path="/alerts" element={<AlertsPage />} />

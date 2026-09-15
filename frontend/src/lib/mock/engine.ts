@@ -20,7 +20,14 @@ import {
   scamPatternSearch,
 } from "./analyzers"
 import { generateExplanation, getRecommendations, inferCategory } from "./explain"
-import { investigateEmailRemote, type RemoteFinding, type RemoteInvestigationResult, type Severity as RemoteSeverity } from "./email-investigation-client"
+import {
+  investigateEmailRemote,
+  investigateUrlRemote,
+  type RemoteFinding,
+  type RemoteInvestigationResult,
+  type RemoteUrlInvestigationResult,
+  type Severity as RemoteSeverity,
+} from "./email-investigation-client"
 import { mlPredictSms, mlPredictUrl, mlResultToEvidence } from "./ml-client"
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGE_ORDER, TOOL_LABELS } from "./tools"
 import { generateCaseId, generateInvestigationToken } from "@/lib/case-id"
@@ -409,6 +416,134 @@ export async function runEmailInvestigation(rawEmail: string, handlers: Investig
     allFindings: result.allFindings,
     inputType: "EMAIL",
     input: result.parsedEmail.headers.subject ?? rawEmail.slice(0, 120),
+    category: inferCategory([], level),
+    riskScore: score,
+    riskLevel: level,
+    confidence,
+    status: "INVESTIGATION_COMPLETE",
+    toolsUsed: toolExecutions,
+    evidence,
+    evidenceGraph: result.evidenceGraph,
+    explanation,
+    recommendation,
+    timeline,
+    createdAt: new Date().toISOString(),
+    assignee: "You",
+  }
+
+  return fraudCase
+}
+
+// --- Real URL-only investigation (Phase 3 of the mobile-ingest build) ------
+// Same treatment as runEmailInvestigation above: calls the real backend
+// (url-analysis + threat-intel + risk-engine, never the archived mock URL
+// analyzer in ./analyzers.ts) and adapts it into the same FraudCase shape.
+// There is deliberately no parsedEmail/rawEmailContent on the resulting
+// case — nothing about an email was ever submitted, and nothing here
+// pretends otherwise.
+
+function findingsForUrlTool(tool: string, allFindings: RemoteFinding[]): RemoteFinding[] {
+  if (tool === "url_analysis") return allFindings.filter((f) => f.source === "url_analysis" || f.id.startsWith("ml_url_model"))
+  if (tool === "threat_intelligence") return allFindings.filter((f) => f.source === "threat_intelligence")
+  return []
+}
+
+export async function runUrlInvestigation(url: string, handlers: InvestigationHandlers = {}): Promise<FraudCase | null> {
+  const timeline: FraudCase["timeline"] = []
+  const pushTimeline = (label: string, detail?: string) => {
+    timeline.push({ label, timestamp: nowTime(), detail })
+  }
+
+  for (const id of PIPELINE_STAGE_ORDER) {
+    await setStage(id, "waiting", handlers)
+  }
+
+  await setStage("input", "running", handlers)
+  handlers.onEvent?.(makeEvent("Investigation started for URL input"))
+  pushTimeline("Input received")
+  await wait(200)
+  await setStage("input", "complete", handlers)
+
+  await setStage("classification", "running", handlers)
+  await wait(200)
+  handlers.onEvent?.(makeEvent("Agent classified input as URL"))
+  pushTimeline("Input classified", "URL")
+  await setStage("classification", "complete", handlers)
+
+  await setStage("tool-selection", "running", handlers)
+  handlers.onEvent?.(makeEvent("Submitting to the real investigation backend…"))
+  const result: RemoteUrlInvestigationResult | null = await investigateUrlRemote(url)
+  if (!result) {
+    handlers.onEvent?.(makeEvent("Investigation backend unavailable — is server/local-api.ts running on port 8787?", "info"))
+    await setStage("tool-selection", "complete", handlers)
+    return null
+  }
+  await setStage("tool-selection", "complete", handlers)
+  pushTimeline("Tools selected", result.toolLog.filter((t) => t.status !== "skipped").map((t) => TOOL_LABELS[t.tool as ToolId] ?? t.tool).join(", "))
+
+  await setStage("evidence-collection", "running", handlers)
+  const toolExecutions: ToolExecution[] = []
+  for (const record of result.toolLog) {
+    const toolId = record.tool as ToolId
+    const findings = findingsForUrlTool(record.tool, result.allFindings)
+    handlers.onTool?.({ id: toolId, label: TOOL_LABELS[toolId] ?? record.tool, status: "running", evidence: [] })
+    await wait(180)
+    const execution: ToolExecution = {
+      id: toolId,
+      label: TOOL_LABELS[toolId] ?? record.tool,
+      status: "completed",
+      durationMs: Math.round(record.durationMs),
+      summary: toolSummary(record, findings),
+      evidence: findings.map(remoteFindingToEvidence),
+    }
+    toolExecutions.push(execution)
+    handlers.onTool?.(execution)
+    handlers.onEvent?.(makeEvent(`${execution.label} ${record.status === "skipped" ? "skipped" : "completed"} — ${execution.summary}`, "tool"))
+    pushTimeline(`${execution.label} ${record.status}`, execution.summary)
+  }
+  handlers.onGraph?.(result.evidenceGraph)
+  handlers.onEvent?.(makeEvent(`Evidence correlated — ${result.evidenceGraph.nodes.length} node(s), ${result.evidenceGraph.edges.length} relationship(s)`))
+  pushTimeline("Evidence correlated", `${result.evidenceGraph.nodes.length} node(s)`)
+  await setStage("evidence-collection", "complete", handlers)
+
+  await setStage("risk-analysis", "running", handlers)
+  await wait(200)
+  const { score, level } = result.riskAssessment
+  const confidence: Evidence["severity"] = result.allFindings.length >= 5 ? "HIGH" : result.allFindings.length >= 2 ? "MEDIUM" : "LOW"
+  handlers.onRisk?.({ score, level })
+  handlers.onEvent?.(makeEvent(`Risk Engine completed — ${score}/100 (${level})`, "risk"))
+  pushTimeline("Risk score calculated", `${score}/100 — ${level}`)
+  await setStage("risk-analysis", "complete", handlers)
+
+  await setStage("final-assessment", "running", handlers)
+  await wait(150)
+  const evidence = result.allFindings.filter((f) => f.severity !== "info").map(remoteFindingToEvidence)
+  const uniqueExplanations = Array.from(new Set(result.riskAssessment.topReasons.map((r) => r.explanation)))
+  const explanation =
+    uniqueExplanations.length > 0
+      ? uniqueExplanations.slice(0, 3).join(" ")
+      : "No significant risk indicators were found across URL structural analysis or threat intelligence checks."
+  const recommendation = getRecommendations(level)
+  handlers.onEvent?.(makeEvent("Explanation and recommendation generated"))
+  pushTimeline("Assessment generated", `${level} risk`)
+  await setStage("final-assessment", "complete", handlers)
+
+  await setStage("case-creation", "running", handlers)
+  const urlHash = await sha256Hex(url)
+  const caseId = generateCaseId()
+  const investigationToken = generateInvestigationToken()
+  handlers.onEvent?.(makeEvent(`Case ${caseId} created — investigation token ${investigationToken}`))
+  pushTimeline("Case generated", caseId)
+  await setStage("case-creation", "complete", handlers)
+
+  const fraudCase: FraudCase = {
+    id: caseId,
+    investigationToken,
+    emailHash: urlHash,
+    riskBreakdown: result.riskAssessment.breakdown,
+    allFindings: result.allFindings,
+    inputType: "URL",
+    input: url,
     category: inferCategory([], level),
     riskScore: score,
     riskLevel: level,

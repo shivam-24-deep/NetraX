@@ -82,6 +82,23 @@ export interface RemoteInvestigationResult {
   toolLog: RemoteToolExecutionRecord[]
 }
 
+export interface RemoteUrlFeatures {
+  url: string
+  hostname: string
+  isValid: boolean
+  [key: string]: unknown
+}
+
+export interface RemoteUrlInvestigationResult {
+  url: string
+  urlAnalysis: { features: RemoteUrlFeatures; findings: RemoteFinding[]; mlModelAvailable: boolean }
+  threatIntelResults: unknown[]
+  allFindings: RemoteFinding[]
+  riskAssessment: RemoteRiskAssessment
+  evidenceGraph: { nodes: RemoteGraphNode[]; edges: RemoteGraphEdge[] }
+  toolLog: RemoteToolExecutionRecord[]
+}
+
 let apiAvailable: boolean | null = null
 
 export function isEmailApiKnownAvailable(): boolean | null {
@@ -109,6 +126,29 @@ export async function investigateEmailRemote(rawEmail: string): Promise<RemoteIn
     }
     apiAvailable = true
     return (await res.json()) as RemoteInvestigationResult
+  } catch {
+    apiAvailable = false
+    return null
+  }
+}
+
+export async function investigateUrlRemote(url: string): Promise<RemoteUrlInvestigationResult | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    const res = await fetch(`${LOCAL_API_URL}/investigate-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (!res.ok) {
+      apiAvailable = false
+      return null
+    }
+    apiAvailable = true
+    return (await res.json()) as RemoteUrlInvestigationResult
   } catch {
     apiAvailable = false
     return null

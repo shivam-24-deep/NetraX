@@ -25,7 +25,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea"
 import { sha256Hex } from "@/lib/hash"
 import { INPUT_TYPE_ICONS, INPUT_TYPE_LABELS } from "@/lib/input-type"
-import { runEmailInvestigation, runInvestigation } from "@/lib/mock/engine"
+import { runEmailInvestigation, runInvestigation, runUrlInvestigation } from "@/lib/mock/engine"
 import { DEMO_EMAILS, fetchDemoEmail } from "@/lib/mock/demo-emails"
 import { readFileAsText, validateEmailFile, validatePastedEmail } from "@/lib/mock/email-input-validation"
 import { addCase, findCaseByEmailHash, toggleSaved, updateCaseStatus } from "@/lib/mock/store"
@@ -176,7 +176,9 @@ export default function InvestigatePage() {
     const result =
       inputType === "EMAIL"
         ? await runEmailInvestigation(content, handlers)
-        : await runInvestigation({ type: inputType, content, transactionFields: txFields }, handlers)
+        : inputType === "URL"
+          ? await runUrlInvestigation(content, handlers)
+          : await runInvestigation({ type: inputType, content, transactionFields: txFields }, handlers)
 
     if (!result) {
       toast.error("Investigation backend unavailable — start it with: node server/local-api.ts")
@@ -221,7 +223,7 @@ export default function InvestigatePage() {
 
         {phase === "running" && (
           <motion.div key="running" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
-            {inputType === "EMAIL" ? (
+            {inputType === "EMAIL" || inputType === "URL" ? (
               <>
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight">NetraX Investigation Control Room</h2>
@@ -229,6 +231,7 @@ export default function InvestigatePage() {
                 </div>
                 <InvestigationControlRoom
                   submittedEmail={content}
+                  submittedLabel={inputType === "URL" ? "Submitted URL" : "Submitted Email"}
                   stages={stages}
                   events={events}
                   tools={tools}

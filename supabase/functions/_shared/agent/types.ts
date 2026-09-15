@@ -46,3 +46,19 @@ export interface InvestigationResult {
   evidenceGraph: EvidenceGraph;
   toolLog: ToolExecutionRecord[];
 }
+
+/**
+ * URL-only investigation (no email to anchor the evidence graph on) — real
+ * findings from the same url-analysis/threat-intel/risk-engine modules
+ * investigateEmail uses, never the archived mock URL analyzer. See
+ * investigate-url.ts.
+ */
+export interface UrlInvestigationResult {
+  url: string;
+  urlAnalysis: FullUrlAnalysisResult;
+  threatIntelResults: ThreatIntelLookupResult[];
+  allFindings: Finding[];
+  riskAssessment: RiskAssessment;
+  evidenceGraph: EvidenceGraph;
+  toolLog: ToolExecutionRecord[];
+}

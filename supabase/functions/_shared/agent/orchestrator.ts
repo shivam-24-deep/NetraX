@@ -19,36 +19,8 @@ import { geolocateSourceIps, geolocationToFinding } from "../geolocation/index.t
 import { computeRiskScore } from "../risk-engine/index.ts";
 import { buildEvidenceGraph } from "../evidence-graph/builder.ts";
 import type { Finding } from "../email/evidence.ts";
-import type { InvestigationResult, ToolExecutionRecord, ToolName } from "./types.ts";
-
-async function runTool<T>(
-  tool: ToolName,
-  log: ToolExecutionRecord[],
-  fn: () => Promise<T>,
-  countFindings: (result: T) => number,
-): Promise<T> {
-  const startedAt = new Date().toISOString();
-  const start = performance.now();
-  try {
-    const result = await fn();
-    log.push({ tool, status: "success", startedAt, durationMs: performance.now() - start, findingCount: countFindings(result) });
-    return result;
-  } catch (err) {
-    log.push({
-      tool,
-      status: "error",
-      reason: err instanceof Error ? err.message : "unknown error",
-      startedAt,
-      durationMs: performance.now() - start,
-      findingCount: 0,
-    });
-    throw err;
-  }
-}
-
-function skipTool(tool: ToolName, log: ToolExecutionRecord[], reason: string): void {
-  log.push({ tool, status: "skipped", reason, startedAt: new Date().toISOString(), durationMs: 0, findingCount: 0 });
-}
+import { runTool, skipTool } from "./tool-log.ts";
+import type { InvestigationResult, ToolExecutionRecord } from "./types.ts";
 
 export async function investigateEmail(
   input: string | EmailJsonInput,

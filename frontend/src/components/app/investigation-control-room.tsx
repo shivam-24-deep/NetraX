@@ -10,6 +10,8 @@ import type { EvidenceGraph, PipelineStage, RiskLevel, TimelineEvent, ToolExecut
 interface InvestigationControlRoomProps {
   submittedEmail: string
   emailSubject?: string
+  /** Left-panel card title — defaults to "Submitted Email"; pass "Submitted URL" etc. for non-email investigations. */
+  submittedLabel?: string
   stages: PipelineStage[]
   events: TimelineEvent[]
   tools: ToolExecution[]
@@ -17,8 +19,17 @@ interface InvestigationControlRoomProps {
   evidenceGraph?: EvidenceGraph
 }
 
-/** SOC-style control room: left = submitted email, center = timeline, right = risk summary, bottom = evidence graph. */
-export function InvestigationControlRoom({ submittedEmail, emailSubject, stages, events, tools, risk, evidenceGraph }: InvestigationControlRoomProps) {
+/** SOC-style control room: left = submitted evidence, center = timeline, right = risk summary, bottom = evidence graph. */
+export function InvestigationControlRoom({
+  submittedEmail,
+  emailSubject,
+  submittedLabel = "Submitted Email",
+  stages,
+  events,
+  tools,
+  risk,
+  evidenceGraph,
+}: InvestigationControlRoomProps) {
   const findingCount = tools.reduce((sum, t) => sum + t.evidence.length, 0)
 
   return (
@@ -34,7 +45,7 @@ export function InvestigationControlRoom({ submittedEmail, emailSubject, stages,
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Mail className="size-4 text-muted-foreground" />
-              Submitted Email
+              {submittedLabel}
             </CardTitle>
             {emailSubject && <CardDescription className="truncate">{emailSubject}</CardDescription>}
           </CardHeader>

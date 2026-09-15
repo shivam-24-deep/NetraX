@@ -4,11 +4,14 @@ import { Link } from "react-router-dom"
 import { RiskBadge } from "@/components/risk-badge"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
+import { CASE_SOURCE_ICONS, CASE_SOURCE_LABELS, resolveCaseSource } from "@/lib/case-source"
 import { INPUT_TYPE_ICONS } from "@/lib/input-type"
 import type { FraudCase } from "@/types/fraud"
 
 export function CaseRow({ fraudCase }: { fraudCase: FraudCase }) {
   const Icon = INPUT_TYPE_ICONS[fraudCase.inputType]
+  const source = resolveCaseSource(fraudCase.source)
+  const SourceIcon = CASE_SOURCE_ICONS[source]
 
   return (
     <Link
@@ -35,6 +38,10 @@ export function CaseRow({ fraudCase }: { fraudCase: FraudCase }) {
       <div className="hidden shrink-0 lg:block">
         <StatusBadge status={fraudCase.status} />
       </div>
+      <Badge variant="outline" className="hidden shrink-0 items-center gap-1 text-muted-foreground xl:inline-flex">
+        <SourceIcon className="size-3" />
+        {CASE_SOURCE_LABELS[source]}
+      </Badge>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
     </Link>
   )

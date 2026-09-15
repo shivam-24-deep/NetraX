@@ -6,28 +6,42 @@
 // this module does no DNS lookups. URL -> Domain edges ARE direct (the
 // domain is parsed straight from the URL string), unlike sender Domain -> IP.
 
-import type { InvestigationResult } from "../agent/types.ts";
+import type { InvestigationResult, UrlInvestigationResult } from "../agent/types.ts";
 import type { EvidenceGraph, GraphEdge, GraphNode } from "./types.ts";
 
 function nodeId(type: string, key: string): string {
   return `${type}:${key}`;
 }
 
+interface GraphBuilder {
+  nodes: Map<string, GraphNode>;
+  edges: GraphEdge[];
+  addNode: (node: GraphNode) => void;
+  addEdge: (from: string, to: string, relationship: string) => void;
+}
+
+function createGraphBuilder(): GraphBuilder {
+  const nodes = new Map<string, GraphNode>();
+  const edges: GraphEdge[] = [];
+  return {
+    nodes,
+    edges,
+    addNode: (node: GraphNode) => {
+      if (!nodes.has(node.id)) nodes.set(node.id, node);
+    },
+    addEdge: (from: string, to: string, relationship: string) => {
+      if (!edges.some((e) => e.from === from && e.to === to && e.relationship === relationship)) {
+        edges.push({ from, to, relationship });
+      }
+    },
+  };
+}
+
 /** Takes everything an InvestigationResult has EXCEPT the graph itself (which this function produces). */
 export type GraphSourceData = Omit<InvestigationResult, "evidenceGraph">;
 
 export function buildEvidenceGraph(result: GraphSourceData): EvidenceGraph {
-  const nodes = new Map<string, GraphNode>();
-  const edges: GraphEdge[] = [];
-
-  const addNode = (node: GraphNode) => {
-    if (!nodes.has(node.id)) nodes.set(node.id, node);
-  };
-  const addEdge = (from: string, to: string, relationship: string) => {
-    if (!edges.some((e) => e.from === from && e.to === to && e.relationship === relationship)) {
-      edges.push({ from, to, relationship });
-    }
-  };
+  const { nodes, edges, addNode, addEdge } = createGraphBuilder();
 
   const emailId = nodeId("email", result.parsedEmail.headers.messageId ?? "submitted-email");
   addNode({
@@ -117,6 +131,46 @@ export function buildEvidenceGraph(result: GraphSourceData): EvidenceGraph {
       addNode({ id: tiId, type: "threat_intel", label: `${source}: ${ti.status}`, data: { ...ti } });
       addEdge(senderDomainId, tiId, ti.status === "matched" ? "matched_by" : "checked_against");
     }
+  }
+
+  return { nodes: Array.from(nodes.values()), edges };
+}
+
+/** Takes everything a UrlInvestigationResult has EXCEPT the graph itself. */
+export type UrlGraphSourceData = Omit<UrlInvestigationResult, "evidenceGraph">;
+
+/**
+ * URL-only graph: URL -> Domain -> Threat Intelligence. There is no Email or
+ * Sender node here — unlike investigate-email's synthetic-email workaround
+ * this never invents an email that wasn't submitted.
+ */
+export function buildUrlEvidenceGraph(result: UrlGraphSourceData): EvidenceGraph {
+  const { nodes, edges, addNode, addEdge } = createGraphBuilder();
+
+  const { features } = result.urlAnalysis;
+  if (!features.isValid) {
+    return { nodes: [], edges: [] };
+  }
+
+  const urlId = nodeId("url", features.url);
+  addNode({
+    id: urlId,
+    type: "url",
+    label: features.url,
+    data: { url: features.url, findings: result.urlAnalysis.findings, riskScore: result.riskAssessment.score, riskLevel: result.riskAssessment.level },
+  });
+
+  const domainId = nodeId("domain", features.hostname);
+  addNode({ id: domainId, type: "domain", label: features.hostname, data: { domain: features.hostname } });
+  addEdge(urlId, domainId, "hosted_on_domain");
+
+  for (const ti of result.threatIntelResults) {
+    const tiIndicator = ti.status === "matched" ? ti.result.indicator : ti.indicator;
+    if (tiIndicator !== features.url && tiIndicator !== features.hostname) continue;
+    const source = ti.status === "matched" ? ti.result.source : ti.source;
+    const tiId = nodeId("threat_intel", `${source}:${tiIndicator}`);
+    addNode({ id: tiId, type: "threat_intel", label: `${source}: ${ti.status}`, data: { ...ti } });
+    addEdge(tiIndicator === features.hostname ? domainId : urlId, tiId, ti.status === "matched" ? "matched_by" : "checked_against");
   }
 
   return { nodes: Array.from(nodes.values()), edges };

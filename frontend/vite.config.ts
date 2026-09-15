@@ -12,8 +12,12 @@ export default defineConfig({
     },
   },
   server: {
-    // Allows sharing the local dev server through a tunnel (e.g. ngrok) for quick previews.
-    allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app'],
+    // Bind all interfaces (not just loopback) so a phone on the same Wi-Fi/LAN
+    // can reach this dev server via the machine's LAN IP — required for the
+    // "Send to NetraX" mobile QR flow (see MobileShareCard) to actually load.
+    host: true,
+    // Allows sharing the local dev server through a tunnel (e.g. ngrok, Cloudflare Quick Tunnel) for quick previews.
+    allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app', '.trycloudflare.com'],
     // Proxy the two local backends through this same origin/port, so the
     // browser only ever talks to :5173 — sidesteps any cross-port browser
     // networking issue (firewall, extension, proxy) unrelated to whether
@@ -24,6 +28,6 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app'],
+    allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app', '.trycloudflare.com'],
   },
 })

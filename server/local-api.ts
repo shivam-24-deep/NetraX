@@ -21,7 +21,9 @@
 // convenience, not the only supported way to run this code.
 
 import http from "node:http";
+import os from "node:os";
 import { investigateEmail } from "../supabase/functions/_shared/agent/orchestrator.ts";
+import { investigateUrl } from "../supabase/functions/_shared/agent/investigate-url.ts";
 import { parseEmail } from "../supabase/functions/_shared/email/parser.ts";
 import { analyzeUrlWithMl } from "../supabase/functions/_shared/url-analysis/index.ts";
 import { checkIndicator } from "../supabase/functions/_shared/threat-intel/index.ts";
@@ -31,6 +33,21 @@ import type { EmailInputFormat, EmailJsonInput } from "../supabase/functions/_sh
 
 const PORT = Number(process.env.LOCAL_API_PORT ?? 8787);
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+// Best-effort LAN IPv4 discovery — used only so the "Send to NetraX" mobile QR
+// code can point a phone at this machine's real network address instead of
+// "localhost" (which resolves to the phone itself, not this machine). Never
+// used for anything security-sensitive; if nothing suitable is found, callers
+// fall back to whatever origin the page was already loaded from.
+function findLanIp(): string | null {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
 
 function withCors(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -97,6 +114,17 @@ const routes: Record<string, Handler> = {
     }
   },
 
+  "/investigate-url": async (body) => {
+    const { url } = body as { url?: string };
+    if (typeof url !== "string" || !url.trim()) return { status: 400, body: { error: "Missing required field: url." } };
+    try {
+      return { status: 200, body: await investigateUrl(url) };
+    } catch (err) {
+      console.error("investigate-url failed:", err);
+      return { status: 422, body: { error: "Failed to investigate URL." } };
+    }
+  },
+
   "/check-threat-intel": async (body) => {
     const { indicator, indicator_type } = body as { indicator?: string; indicator_type?: string };
     const validTypes: IndicatorType[] = ["url", "domain", "ip", "email"];
@@ -123,6 +151,10 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === "GET" && req.url === "/health") {
     sendJson(res, 200, { status: "ok" });
+    return;
+  }
+  if (req.method === "GET" && req.url === "/network-info") {
+    sendJson(res, 200, { lanIp: findLanIp() });
     return;
   }
 
@@ -153,5 +185,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Local dev API server listening on http://localhost:${PORT}`);
-  console.log("Routes: /health, /parse-email, /investigate-email, /analyze-url, /check-threat-intel, /geolocate-ip");
+  console.log(
+    "Routes: /health, /network-info, /parse-email, /investigate-email, /investigate-url, /analyze-url, /check-threat-intel, /geolocate-ip",
+  );
 });

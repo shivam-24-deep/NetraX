@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Radar,
   Search,
+  Send,
   Settings,
   ShieldAlert,
   User,
@@ -47,6 +48,7 @@ const MAIN_NAV: NavItem[] = [
 ]
 
 const WORKSPACE_NAV: NavItem[] = [
+  { to: "/send", label: "Send to NetraX", icon: Send },
   { to: "/my-investigations", label: "My Investigations", icon: Search },
   { to: "/saved-cases", label: "Saved Cases", icon: Bookmark },
   { to: "/watchlist", label: "Watchlist", icon: Eye },
@@ -72,6 +74,7 @@ const MOBILE_NAV: NavItem[] = [
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Overview",
   "/investigate": "Investigate",
+  "/send": "Send to NetraX",
   "/cases": "Cases",
   "/alerts": "Alert Center",
   "/analytics": "Analytics",
