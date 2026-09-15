@@ -19,8 +19,8 @@ export default defineConfig({
     // networking issue (firewall, extension, proxy) unrelated to whether
     // the backends themselves are reachable from this machine.
     proxy: {
-      '/local-api': { target: 'http://localhost:8787', changeOrigin: true, rewrite: (p) => p.replace(/^\/local-api/, '') },
-      '/ml-api': { target: 'http://localhost:8000', changeOrigin: true, rewrite: (p) => p.replace(/^\/ml-api/, '') },
+      '/local-api': { target: 'http://127.0.0.1:8787', changeOrigin: true, rewrite: (p) => p.replace(/^\/local-api/, '') },
+      '/ml-api': { target: 'http://127.0.0.1:8000', changeOrigin: true, rewrite: (p) => p.replace(/^\/ml-api/, '') },
     },
   },
   preview: {

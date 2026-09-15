@@ -34,7 +34,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 function withCors(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Access-Control-Allow-Headers", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
 }
 
