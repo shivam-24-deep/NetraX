@@ -4,10 +4,12 @@
 // downloadable .mmdb binary database — parsing that binary format from
 // scratch would be substantial, error-prone work for no real benefit over
 // calling the service MaxMind already runs. Gated on MAXMIND_ACCOUNT_ID +
-// MAXMIND_LICENSE_KEY; this project has neither, so this client's behavior
-// against the REAL API has not been verified live — implemented against
-// MaxMind's documented contract (https://dev.maxmind.com/geoip/docs/web-services)
-// and treated as unavailable, not fabricated, until credentials exist.
+// MAXMIND_LICENSE_KEY — without them, reports "unavailable", never fabricates
+// a result. Verified live 2026-09-15 with a real free-tier MaxMind account
+// (8.8.8.8 -> United States, AS15169 Google LLC, 8.8.8.0/24) — this client's
+// behavior against the real API is now confirmed correct, not just
+// implemented against MaxMind's documented contract
+// (https://dev.maxmind.com/geoip/docs/web-services).
 //
 // Per Rule 4: results are always "approximate infrastructure geolocation",
 // never an exact physical address.

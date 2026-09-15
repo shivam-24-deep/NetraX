@@ -1,4 +1,5 @@
 import type {
+  CaseSource,
   Evidence,
   FraudCase,
   FraudCategory,
@@ -565,4 +566,75 @@ export async function runUrlInvestigation(url: string, handlers: InvestigationHa
 function formatTransactionSummary(fields?: TransactionFields): string {
   if (!fields) return "Transaction"
   return `₹${fields.amount || "0"} at ${fields.merchant || "unknown merchant"}, ${fields.location || "unknown location"}, ${fields.time || "unknown time"}`
+}
+
+// --- Gmail auto-detect case building -----------------------------------
+// Builds a FraudCase from an investigation the backend already ran (via
+// /gmail/check-new, which calls the exact same investigateEmail()
+// orchestrator runEmailInvestigation above does) — no re-investigation, and
+// deliberately no paced/animated reveal: unlike the live single-email flow,
+// this processes a batch that finished before the UI ever saw it, so there's
+// nothing honest to animate.
+
+export async function buildFraudCaseFromEmailResult(rawEmail: string, result: RemoteInvestigationResult, source: CaseSource): Promise<FraudCase> {
+  const toolExecutions: ToolExecution[] = result.toolLog
+    .filter((record) => record.tool !== "email_parser")
+    .map((record) => {
+      const toolId = record.tool as ToolId
+      const findings = findingsForTool(record.tool, result.allFindings)
+      return {
+        id: toolId,
+        label: TOOL_LABELS[toolId] ?? record.tool,
+        status: "completed" as const,
+        durationMs: Math.round(record.durationMs),
+        summary: toolSummary(record, findings),
+        evidence: findings.map(remoteFindingToEvidence),
+      }
+    })
+
+  const timeline: FraudCase["timeline"] = result.toolLog.map((record) => ({
+    label: `${TOOL_LABELS[record.tool as ToolId] ?? record.tool} ${record.status}`,
+    timestamp: nowTime(),
+    detail: record.status === "skipped" ? record.reason : `${Math.round(record.durationMs)}ms`,
+  }))
+
+  const { score, level } = result.riskAssessment
+  const confidence: Evidence["severity"] = result.allFindings.length >= 8 ? "HIGH" : result.allFindings.length >= 3 ? "MEDIUM" : "LOW"
+  const evidence = result.allFindings.filter((f) => f.severity !== "info").map(remoteFindingToEvidence)
+  const uniqueExplanations = Array.from(new Set(result.riskAssessment.topReasons.map((r) => r.explanation)))
+  const explanation =
+    uniqueExplanations.length > 0
+      ? uniqueExplanations.slice(0, 3).join(" ")
+      : "No significant risk indicators were found across header forensics, content analysis, URL analysis, threat intelligence, or geolocation checks."
+  const recommendation = getRecommendations(level)
+
+  const emailHash = await sha256Hex(rawEmail)
+  const caseId = generateCaseId()
+  const investigationToken = generateInvestigationToken()
+
+  return {
+    id: caseId,
+    investigationToken,
+    emailHash,
+    rawEmailContent: rawEmail,
+    parsedEmail: result.parsedEmail,
+    riskBreakdown: result.riskAssessment.breakdown,
+    allFindings: result.allFindings,
+    inputType: "EMAIL",
+    input: result.parsedEmail.headers.subject ?? rawEmail.slice(0, 120),
+    category: inferCategory([], level),
+    riskScore: score,
+    riskLevel: level,
+    confidence,
+    status: "INVESTIGATION_COMPLETE",
+    toolsUsed: toolExecutions,
+    evidence,
+    evidenceGraph: result.evidenceGraph,
+    explanation,
+    recommendation,
+    timeline,
+    createdAt: new Date().toISOString(),
+    assignee: "You",
+    source,
+  }
 }

@@ -30,9 +30,27 @@ import { checkIndicator } from "../supabase/functions/_shared/threat-intel/index
 import type { IndicatorType } from "../supabase/functions/_shared/threat-intel/types.ts";
 import { geolocateSourceIps } from "../supabase/functions/_shared/geolocation/index.ts";
 import type { EmailInputFormat, EmailJsonInput } from "../supabase/functions/_shared/email/types.ts";
+import {
+  buildGoogleAuthUrl,
+  disconnectGmail,
+  exchangeCodeForTokens,
+  fetchNewGmailMessages,
+  isGmailConnected,
+  isGoogleConfigured,
+} from "./gmail-client.ts";
+
+// Load repo-root .env (GOOGLE_CLIENT_ID, PHISHTANK_APP_KEY, etc.) if present —
+// silently continues without it, same "missing key = feature reports
+// unavailable, never fake" pattern as every other integration here.
+try {
+  process.loadEnvFile(new URL("../.env", import.meta.url));
+} catch {
+  // no root .env — every credential-gated feature below reports "not configured"
+}
 
 const PORT = Number(process.env.LOCAL_API_PORT ?? 8787);
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
 
 // Best-effort LAN IPv4 discovery — used only so the "Send to NetraX" mobile QR
 // code can point a phone at this machine's real network address instead of
@@ -59,6 +77,11 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   const payload = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) });
   res.end(payload);
+}
+
+function sendRedirect(res: http.ServerResponse, location: string): void {
+  res.writeHead(302, { Location: location });
+  res.end();
 }
 
 function readBody(req: http.IncomingMessage): Promise<string> {
@@ -140,6 +163,56 @@ const routes: Record<string, Handler> = {
     const results = await geolocateSourceIps(ips as string[]);
     return { status: 200, body: { results } };
   },
+
+  "/auth/google/disconnect": async () => {
+    disconnectGmail();
+    return { status: 200, body: { connected: false } };
+  },
+
+  // Gmail auto-detect (SIH26106 mobile-ingest follow-up): scans for inbox
+  // messages that arrived since connecting (never a bulk history scan — see
+  // gmail-client.ts) and runs each through the SAME investigateEmail()
+  // pipeline /investigate-email uses. Never a separate/lesser analysis path.
+  "/gmail/check-new": async () => {
+    if (!isGoogleConfigured()) return { status: 400, body: { error: "Gmail is not configured (missing GOOGLE_CLIENT_ID/SECRET)." } };
+    if (!isGmailConnected()) return { status: 400, body: { error: "Gmail is not connected. Visit /auth/google/start first." } };
+    try {
+      const messages = await fetchNewGmailMessages(5);
+      const results = await Promise.all(
+        messages.map(async (m) => ({ messageId: m.messageId, rawEmail: m.rawEmail, result: await investigateEmail(m.rawEmail) })),
+      );
+      return { status: 200, body: { scanned: messages.length, results } };
+    } catch (err) {
+      console.error("gmail/check-new failed:", err);
+      return { status: 502, body: { error: "Failed to check Gmail for new messages." } };
+    }
+  },
+};
+
+type GetHandler = (req: http.IncomingMessage) => Promise<{ status: number; body: unknown } | { redirect: string }>;
+
+const getRoutes: Record<string, GetHandler> = {
+  "/auth/google/status": async () => ({ status: 200, body: { configured: isGoogleConfigured(), connected: isGmailConnected() } }),
+
+  "/auth/google/start": async () => {
+    if (!isGoogleConfigured()) return { status: 400, body: { error: "Gmail is not configured (missing GOOGLE_CLIENT_ID/SECRET) — see .env.example." } };
+    return { redirect: buildGoogleAuthUrl() };
+  },
+
+  "/auth/google/callback": async (req) => {
+    const url = new URL(req.url ?? "", `http://localhost:${PORT}`);
+    const code = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+    if (error) return { redirect: `${FRONTEND_URL}/settings?gmail=error&reason=${encodeURIComponent(error)}` };
+    if (!code) return { status: 400, body: { error: "Missing OAuth code." } };
+    try {
+      await exchangeCodeForTokens(code);
+      return { redirect: `${FRONTEND_URL}/settings?gmail=connected` };
+    } catch (err) {
+      console.error("Google OAuth exchange failed:", err);
+      return { redirect: `${FRONTEND_URL}/settings?gmail=error&reason=${encodeURIComponent(err instanceof Error ? err.message : "unknown")}` };
+    }
+  },
 };
 
 const server = http.createServer(async (req, res) => {
@@ -156,6 +229,21 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/network-info") {
     sendJson(res, 200, { lanIp: findLanIp() });
     return;
+  }
+  if (req.method === "GET" && req.url) {
+    const path = req.url.split("?")[0];
+    const getHandler = getRoutes[path];
+    if (getHandler) {
+      try {
+        const result = await getHandler(req);
+        if ("redirect" in result) sendRedirect(res, result.redirect);
+        else sendJson(res, result.status, result.body);
+      } catch (err) {
+        console.error("GET request failed:", err);
+        sendJson(res, 500, { error: "Internal server error." });
+      }
+      return;
+    }
   }
 
   const handler = req.url ? routes[req.url] : undefined;
@@ -186,6 +274,8 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Local dev API server listening on http://localhost:${PORT}`);
   console.log(
-    "Routes: /health, /network-info, /parse-email, /investigate-email, /investigate-url, /analyze-url, /check-threat-intel, /geolocate-ip",
+    "Routes: /health, /network-info, /parse-email, /investigate-email, /investigate-url, /analyze-url, " +
+      "/check-threat-intel, /geolocate-ip, /auth/google/{status,start,callback,disconnect}, /gmail/check-new",
   );
+  console.log(isGoogleConfigured() ? "Gmail auto-detect: configured" : "Gmail auto-detect: not configured (see .env.example GOOGLE_CLIENT_ID/SECRET)");
 });

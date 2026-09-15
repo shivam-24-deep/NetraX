@@ -5,7 +5,7 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
 export type InputType = "SMS" | "EMAIL" | "URL" | "PHONE" | "TRANSACTION" | "GENERAL"
 
 /** How this case's evidence arrived. Absent (undefined) means "manual" — the original Investigate page flow, before mobile ingestion existed. */
-export type CaseSource = "mobile_share" | "web_upload" | "manual"
+export type CaseSource = "mobile_share" | "web_upload" | "manual" | "gmail_auto"
 
 // Legacy (SMS/URL/Transaction, archived scope): OPEN | UNDER_REVIEW | RESOLVED | FALSE_POSITIVE.
 // Email-forensics workflow (SIH26106): the rest — see docs/IMPLEMENTATION_PLAN.md case-status section.

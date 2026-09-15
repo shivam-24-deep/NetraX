@@ -19,6 +19,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 
 import { CommandPalette } from "@/components/app/command-palette"
 import { StatusIndicator } from "@/components/app/status-indicator"
+import { startGmailPolling } from "@/lib/gmail/gmail-store"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -363,6 +364,13 @@ export function AppLayout() {
   useEffect(() => {
     window.localStorage.setItem("netrax.sidebar-collapsed", collapsed ? "1" : "0")
   }, [collapsed])
+
+  // Gmail auto-detect: starts a single shared poll (see lib/gmail/gmail-store.ts)
+  // that runs for as long as the app stays open, regardless of which page is
+  // active — a no-op until the user connects Gmail in Settings.
+  useEffect(() => {
+    startGmailPolling()
+  }, [])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

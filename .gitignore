@@ -5,6 +5,10 @@ dist-ssr/
 .env.local
 *.local
 
+# Local Gmail OAuth tokens / seen-message baseline (server/gmail-client.ts) — never committed.
+server/.gmail-tokens.json
+server/.gmail-seen.json
+
 .claude/
 
 npm-debug.log*

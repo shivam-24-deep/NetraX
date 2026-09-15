@@ -154,3 +154,59 @@ export async function investigateUrlRemote(url: string): Promise<RemoteUrlInvest
     return null
   }
 }
+
+// --- Gmail auto-detect ------------------------------------------------------
+// Thin client for server/local-api.ts's OAuth + polling endpoints
+// (server/gmail-client.ts). "Connect Gmail" is a full-page navigation (OAuth
+// requires a real browser redirect through Google, not a fetch), everything
+// else here is a normal JSON call.
+
+export interface GoogleAuthStatus {
+  configured: boolean
+  connected: boolean
+}
+
+export async function getGoogleAuthStatus(): Promise<GoogleAuthStatus | null> {
+  try {
+    const res = await fetch(`${LOCAL_API_URL}/auth/google/status`, { headers: { "ngrok-skip-browser-warning": "true" } })
+    if (!res.ok) return null
+    return (await res.json()) as GoogleAuthStatus
+  } catch {
+    return null
+  }
+}
+
+export function googleConnectUrl(): string {
+  return `${LOCAL_API_URL}/auth/google/start`
+}
+
+export async function disconnectGmailRemote(): Promise<boolean> {
+  try {
+    const res = await fetch(`${LOCAL_API_URL}/auth/google/disconnect`, { method: "POST", headers: { "ngrok-skip-browser-warning": "true" } })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+export interface GmailCheckNewResult {
+  scanned: number
+  results: { messageId: string; rawEmail: string; result: RemoteInvestigationResult }[]
+}
+
+export async function checkGmailForNew(): Promise<GmailCheckNewResult | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000)
+    const res = await fetch(`${LOCAL_API_URL}/gmail/check-new`, {
+      method: "POST",
+      headers: { "ngrok-skip-browser-warning": "true" },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+    return (await res.json()) as GmailCheckNewResult
+  } catch {
+    return null
+  }
+}

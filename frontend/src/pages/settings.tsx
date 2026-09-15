@@ -1,5 +1,6 @@
-import { Bell, Database, Shield, Sparkles, User as UserIcon } from "lucide-react"
+import { Bell, Database, Plug, Shield, Sparkles, User as UserIcon } from "lucide-react"
 
+import { GmailIntegrationCard } from "@/components/app/gmail-integration-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,10 @@ export default function SettingsPage() {
           <TabsTrigger value="security">
             <Shield className="size-3.5" />
             Security
+          </TabsTrigger>
+          <TabsTrigger value="integrations">
+            <Plug className="size-3.5" />
+            Integrations
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="size-3.5" />
@@ -80,6 +85,10 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="mt-4">
+          <GmailIntegrationCard />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-4">
