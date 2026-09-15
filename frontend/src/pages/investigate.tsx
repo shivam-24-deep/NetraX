@@ -1,12 +1,17 @@
 import { AnimatePresence, motion } from "framer-motion"
-import { Bot, CheckCircle2, Flag, RotateCcw, ShieldCheck, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { Bot, CheckCircle2, FileUp, Flag, ListChecks, RotateCcw, ShieldCheck, Sparkles } from "lucide-react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { AgentOrb } from "@/components/app/agent-orb"
+import { CyberCellDialog } from "@/components/app/cyber-cell-dialog"
 import { EvidenceCard } from "@/components/app/evidence-card"
 import { EvidenceGraphView } from "@/components/app/evidence-graph-view"
+import { EvidenceIntegrityCard } from "@/components/app/evidence-integrity-card"
+import { HumanReviewCard } from "@/components/app/human-review-card"
+import { InvestigationControlRoom } from "@/components/app/investigation-control-room"
 import { PipelineStepper } from "@/components/app/pipeline-stepper"
+import { ReportActionsCard } from "@/components/app/report-actions-card"
 import { RiskBreakdown } from "@/components/app/risk-breakdown"
 import { RiskGauge } from "@/components/app/risk-gauge"
 import { ToolStatusRow } from "@/components/app/tool-status"
@@ -18,12 +23,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { sha256Hex } from "@/lib/hash"
 import { INPUT_TYPE_ICONS, INPUT_TYPE_LABELS } from "@/lib/input-type"
 import { runEmailInvestigation, runInvestigation } from "@/lib/mock/engine"
-import { addCase, toggleSaved, updateCaseStatus } from "@/lib/mock/store"
+import { DEMO_EMAILS, fetchDemoEmail } from "@/lib/mock/demo-emails"
+import { readFileAsText, validateEmailFile, validatePastedEmail } from "@/lib/mock/email-input-validation"
+import { addCase, findCaseByEmailHash, toggleSaved, updateCaseStatus } from "@/lib/mock/store"
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGE_ORDER } from "@/lib/mock/tools"
 import { cn } from "@/lib/utils"
-import type { FraudCase, InputType, PipelineStage, PipelineStageId, ToolExecution, TransactionFields } from "@/types/fraud"
+import type {
+  EvidenceGraph,
+  FraudCase,
+  InputType,
+  PipelineStage,
+  PipelineStageId,
+  RiskLevel,
+  TimelineEvent,
+  ToolExecution,
+  TransactionFields,
+} from "@/types/fraud"
 
 // SIH26106's official scope is email threat detection, but the original
 // SMS/Transaction fraud modules (rule-based analyzers + trained ML models,
@@ -38,6 +56,7 @@ const STAGE_TO_AGENT_INDEX: Record<PipelineStageId, number> = {
   "evidence-collection": 2,
   "risk-analysis": 3,
   "final-assessment": 4,
+  "case-creation": 4,
 }
 
 const PHISHING_EMAIL_EXAMPLE = [
@@ -84,14 +103,18 @@ function initialStages(): PipelineStage[] {
 
 export default function InvestigatePage() {
   const [phase, setPhase] = useState<"idle" | "running" | "result">("idle")
-  const [inputType, setInputType] = useState<InputType>("SMS")
+  const [inputType, setInputType] = useState<InputType>("EMAIL")
   const [content, setContent] = useState("")
   const [txFields, setTxFields] = useState<TransactionFields>(EMPTY_TX)
 
   const [stages, setStages] = useState<PipelineStage[]>(initialStages())
   const [tools, setTools] = useState<ToolExecution[]>([])
+  const [events, setEvents] = useState<TimelineEvent[]>([])
+  const [liveRisk, setLiveRisk] = useState<{ score: number; level: RiskLevel } | null>(null)
+  const [liveGraph, setLiveGraph] = useState<EvidenceGraph | undefined>(undefined)
   const [selectedTool, setSelectedTool] = useState<ToolExecution | null>(null)
   const [resultCase, setResultCase] = useState<FraudCase | null>(null)
+  const [wasDuplicate, setWasDuplicate] = useState(false)
 
   const isTransaction = inputType === "TRANSACTION"
   const canInvestigate = isTransaction
@@ -105,10 +128,22 @@ export default function InvestigatePage() {
   }
 
   async function start() {
+    if (inputType === "EMAIL") {
+      const validation = validatePastedEmail(content)
+      if (!validation.ok) {
+        toast.error(validation.error)
+        return
+      }
+    }
+
     setPhase("running")
     setStages(initialStages())
     setTools([])
+    setEvents([])
+    setLiveRisk(null)
+    setLiveGraph(undefined)
     setResultCase(null)
+    setWasDuplicate(false)
 
     const handlers = {
       onStage: (stage: PipelineStage) => setStages((prev) => prev.map((s) => (s.id === stage.id ? stage : s))),
@@ -120,6 +155,22 @@ export default function InvestigatePage() {
           next[idx] = tool
           return next
         }),
+      onEvent: (event: { id: string; timestamp: string; message: string }) =>
+        setEvents((prev) => [...prev, { label: event.message, timestamp: event.timestamp }]),
+      onGraph: (graph: EvidenceGraph) => setLiveGraph(graph),
+      onRisk: (risk: { score: number; level: RiskLevel }) => setLiveRisk(risk),
+    }
+
+    // Idempotency: the exact same submission must not create a second case, for any input type.
+    const contentForHash = inputType === "TRANSACTION" ? JSON.stringify(txFields) : content
+    const contentHash = await sha256Hex(contentForHash)
+    const existing = findCaseByEmailHash(contentHash)
+    if (existing) {
+      setWasDuplicate(true)
+      setResultCase(existing)
+      setPhase("result")
+      toast.message("This exact input was already investigated — showing the existing case.")
+      return
     }
 
     const result =
@@ -143,6 +194,7 @@ export default function InvestigatePage() {
     setContent("")
     setTxFields(EMPTY_TX)
     setResultCase(null)
+    setWasDuplicate(false)
   }
 
   const runningStage = stages.find((s) => s.status === "running") ?? [...stages].reverse().find((s) => s.status === "complete")
@@ -169,7 +221,24 @@ export default function InvestigatePage() {
 
         {phase === "running" && (
           <motion.div key="running" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
-            <RunningView stages={stages} tools={tools} agentActiveIndex={agentActiveIndex} onSelectTool={setSelectedTool} />
+            {inputType === "EMAIL" ? (
+              <>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight">NetraX Investigation Control Room</h2>
+                  <p className="text-sm text-muted-foreground">Live, auditable progress — every result shown is a real backend finding.</p>
+                </div>
+                <InvestigationControlRoom
+                  submittedEmail={content}
+                  stages={stages}
+                  events={events}
+                  tools={tools}
+                  risk={liveRisk}
+                  evidenceGraph={liveGraph}
+                />
+              </>
+            ) : (
+              <RunningView stages={stages} tools={tools} agentActiveIndex={agentActiveIndex} onSelectTool={setSelectedTool} />
+            )}
           </motion.div>
         )}
 
@@ -177,6 +246,7 @@ export default function InvestigatePage() {
           <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
             <ResultView
               fraudCase={resultCase}
+              isDuplicate={wasDuplicate}
               onReset={reset}
               onMarkReviewed={() => {
                 updateCaseStatus(resultCase.id, "UNDER_REVIEW")
@@ -291,6 +361,8 @@ function IdleView({
                 </div>
               ))}
             </div>
+          ) : inputType === "EMAIL" ? (
+            <EmailInputPanel content={content} setContent={setContent} />
           ) : (
             <Textarea
               placeholder={inputType === "URL" ? "Enter suspicious URL…" : "Paste suspicious content here…"}
@@ -300,18 +372,20 @@ function IdleView({
             />
           )}
 
-          <div className="flex flex-wrap gap-2">
-            {QUICK_EXAMPLES.map((ex) => (
-              <button
-                key={ex.label}
-                type="button"
-                onClick={() => onExample(ex)}
-                className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                {ex.label}
-              </button>
-            ))}
-          </div>
+          {inputType !== "EMAIL" && (
+            <div className="flex flex-wrap gap-2">
+              {QUICK_EXAMPLES.map((ex) => (
+                <button
+                  key={ex.label}
+                  type="button"
+                  onClick={() => onExample(ex)}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  {ex.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-start gap-2 rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
@@ -328,6 +402,144 @@ function IdleView({
         </CardContent>
       </Card>
     </>
+  )
+}
+
+type EmailInputTab = "paste" | "upload" | "demo"
+
+function EmailInputPanel({ content, setContent }: { content: string; setContent: (v: string) => void }) {
+  const [tab, setTab] = useState<EmailInputTab>("paste")
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [demoLoading, setDemoLoading] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    const validation = validateEmailFile(file)
+    if (!validation.ok) {
+      toast.error(validation.error)
+      return
+    }
+    try {
+      const text = await readFileAsText(file)
+      setContent(text)
+      setFileName(file.name)
+    } catch {
+      toast.error("Unable to read the selected file.")
+    }
+  }
+
+  async function handleDemoSelect(file: string) {
+    setDemoLoading(file)
+    try {
+      const text = await fetchDemoEmail(file)
+      setContent(text)
+    } catch {
+      toast.error("Could not load that demo email.")
+    } finally {
+      setDemoLoading(null)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-2">
+        {(
+          [
+            ["paste", "Paste Email"],
+            ["upload", "Upload .eml"],
+            ["demo", "Select Demo Email"],
+          ] as [EmailInputTab, string][]
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === value ? "border-primary/60 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "paste" && (
+        <Textarea
+          placeholder="Paste the full raw email (headers + body), or an .eml file's contents…"
+          className="min-h-40 font-mono text-xs"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+      )}
+
+      {tab === "upload" && (
+        <div className="flex flex-col gap-3">
+          <div
+            className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const file = e.dataTransfer.files[0]
+              if (file) handleFile(file)
+            }}
+          >
+            <FileUp className="size-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Drag and drop a .eml file, or</p>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              Browse files
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".eml,.msg,.txt,message/rfc822"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleFile(file)
+                e.target.value = ""
+              }}
+            />
+            <p className="text-[11px] text-muted-foreground">.eml, .msg, or .txt — up to 10 MB</p>
+          </div>
+          {fileName && content && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                Loaded <span className="font-medium text-foreground">{fileName}</span> ({content.length.toLocaleString()} characters)
+              </p>
+              <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-[11px] whitespace-pre-wrap break-all">{content.slice(0, 2000)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "demo" && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {DEMO_EMAILS.map((demo) => (
+            <button
+              key={demo.file}
+              type="button"
+              onClick={() => handleDemoSelect(demo.file)}
+              disabled={demoLoading !== null}
+              className={cn(
+                "flex flex-col gap-1 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:bg-accent",
+                demoLoading === demo.file && "opacity-60",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{demo.label}</span>
+                <RiskBadge level={demo.expectedTier} />
+              </div>
+              <span className="text-xs text-muted-foreground">{demo.scenario}</span>
+            </button>
+          ))}
+          <p className="col-span-full flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <ListChecks className="size-3 shrink-0" />
+            SYNTHETIC DEMO DATA — running one produces a real investigation result, only the input is synthetic.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -382,29 +594,56 @@ function RunningView({
 
 function ResultView({
   fraudCase,
+  isDuplicate,
   onReset,
   onMarkReviewed,
   onReport,
   onSave,
 }: {
   fraudCase: FraudCase
+  isDuplicate?: boolean
   onReset: () => void
   onMarkReviewed: () => void
   onReport: () => void
   onSave: () => void
 }) {
+  const isForensicCase = Boolean(fraudCase.investigationToken)
+  const contributingBreakdown = fraudCase.riskBreakdown?.filter((b) => b.cappedPoints > 0) ?? []
+  const [complaintOpen, setComplaintOpen] = useState(false)
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Investigation Result</h2>
-          <p className="text-sm text-muted-foreground font-mono">{fraudCase.id}</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{isForensicCase ? "NetraX Forensic Case" : "Investigation Result"}</h2>
+          {isForensicCase ? (
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span className="text-muted-foreground">
+                Case ID: <span className="font-mono font-medium text-foreground">{fraudCase.id}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Investigation Token: <span className="font-mono font-medium text-foreground">{fraudCase.investigationToken}</span>
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground font-mono">{fraudCase.id}</p>
+          )}
+          {isDuplicate && (
+            <p className="mt-1 text-xs text-risk-medium">Duplicate submission — this email was already investigated, showing the existing case.</p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={onReset}>
           <RotateCcw className="size-3.5" />
           New investigation
         </Button>
       </div>
+
+      {isForensicCase && (
+        <>
+          <ReportActionsCard fraudCase={fraudCase} onOpenComplaint={() => setComplaintOpen(true)} />
+          <CyberCellDialog fraudCase={fraudCase} open={complaintOpen} onOpenChange={setComplaintOpen} />
+        </>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="flex flex-col items-center justify-center gap-3 py-8 lg:col-span-1">
@@ -418,8 +657,25 @@ function ResultView({
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Risk Breakdown</CardTitle>
+            {contributingBreakdown.length > 0 && (
+              <CardDescription>Only signal sources that actually contributed to the score are shown.</CardDescription>
+            )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
+            {contributingBreakdown.length > 0 && (
+              <ul className="flex flex-col gap-1.5 border-b border-border pb-4 text-sm">
+                {contributingBreakdown.map((b) => (
+                  <li key={b.source} className="flex items-center justify-between gap-2">
+                    <span className="capitalize text-muted-foreground">{b.source.replaceAll("_", " ")}</span>
+                    <span className="font-mono font-medium">+{b.cappedPoints}</span>
+                  </li>
+                ))}
+                <li className="flex items-center justify-between gap-2 pt-1 font-semibold">
+                  <span>Final Score</span>
+                  <span className="font-mono">{fraudCase.riskScore}/100</span>
+                </li>
+              </ul>
+            )}
             <RiskBreakdown evidence={fraudCase.evidence} />
           </CardContent>
         </Card>
@@ -456,6 +712,10 @@ function ResultView({
           </CardContent>
         </Card>
       )}
+
+      {(fraudCase.riskLevel === "HIGH" || fraudCase.riskLevel === "CRITICAL") && <HumanReviewCard fraudCase={fraudCase} />}
+
+      {isForensicCase && <EvidenceIntegrityCard fraudCase={fraudCase} />}
 
       <Card className={cn(fraudCase.riskLevel === "HIGH" && "border-risk-high/40")}>
         <CardHeader>

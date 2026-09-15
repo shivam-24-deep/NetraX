@@ -1,16 +1,20 @@
 import { AnimatePresence } from "framer-motion"
-import { BellOff, Search } from "lucide-react"
+import { BellOff, Search, ShieldAlert } from "lucide-react"
 import { useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { toast } from "sonner"
 
 import { AlertCard } from "@/components/app/alert-card"
 import { EmptyState } from "@/components/app/empty-state"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { updateCaseStatus, useCases } from "@/lib/mock/store"
+import { updateCaseStatus, useAlerts, useCases } from "@/lib/mock/store"
 import type { FraudCase } from "@/types/fraud"
 
 type Filter = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNRESOLVED"
+
+const RESOLVED_STATUSES = new Set(["RESOLVED", "FALSE_POSITIVE", "ACKNOWLEDGED", "SUBMITTED_EXTERNALLY"])
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -26,20 +30,21 @@ function matchesFilter(c: FraudCase, filter: Filter): boolean {
     case "ALL":
       return true
     case "CRITICAL":
-      return c.riskLevel === "HIGH" && c.riskScore >= 90
+      return c.riskLevel === "CRITICAL"
     case "HIGH":
-      return c.riskLevel === "HIGH" && c.riskScore < 90
+      return c.riskLevel === "HIGH"
     case "MEDIUM":
       return c.riskLevel === "MEDIUM"
     case "LOW":
       return c.riskLevel === "LOW"
     case "UNRESOLVED":
-      return c.status === "OPEN" || c.status === "UNDER_REVIEW"
+      return !RESOLVED_STATUSES.has(c.status)
   }
 }
 
 export default function AlertsPage() {
   const cases = useCases()
+  const realTimeAlerts = useAlerts()
   const [filter, setFilter] = useState<Filter>("ALL")
   const [query, setQuery] = useState("")
 
@@ -63,6 +68,35 @@ export default function AlertsPage() {
           <Input placeholder="Search alerts…" className="pl-8" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
+
+      {realTimeAlerts.length > 0 && (
+        <Card className="border-risk-critical/30 bg-risk-critical-bg/20">
+          <CardContent className="flex flex-col gap-3 py-4">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldAlert className="size-4 text-risk-critical" />
+              Automated Threat Alerts — triggered when a case scores HIGH or CRITICAL
+            </p>
+            {realTimeAlerts.slice(0, 5).map((a) => (
+              <Link
+                key={a.id}
+                to={`/cases/${a.caseId}`}
+                className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2.5 text-sm transition-colors hover:bg-accent"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={a.severity === "CRITICAL" ? "font-semibold text-risk-critical" : "font-semibold text-risk-high"}>
+                    {a.severity === "CRITICAL" ? "🚨 CRITICAL EMAIL THREAT" : "⚠ HIGH-RISK EMAIL THREAT"}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{a.caseId}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Threat type: {a.threatType} · {new Date(a.createdAt).toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground">Reason: {a.reason}</p>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
         <TabsList className="flex-wrap">

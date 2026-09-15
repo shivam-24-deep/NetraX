@@ -1,11 +1,26 @@
 import type { Evidence, FraudCategory, RiskLevel } from "@/types/fraud"
 
+// Placeholder "nothing found" labels the rule-based analyzers emit when they have zero real findings —
+// distinguishing these from genuine (if weak) findings prevents the LOW-risk summary from claiming
+// "no indicators were found" while the report lists actual MEDIUM/LOW findings right below it.
+const PLACEHOLDER_LABELS = new Set([
+  "No fraud indicators detected in message text",
+  "No structural red flags in URL",
+  "No match against known scam patterns",
+  "Transaction is consistent with normal behavior",
+])
+
 export function generateExplanation(level: RiskLevel, evidence: Evidence[], categories: FraudCategory[]): string {
   const highs = evidence.filter((e) => e.severity === "HIGH").map((e) => e.label.toLowerCase())
+  const realFindings = evidence.filter((e) => !PLACEHOLDER_LABELS.has(e.label))
   const category = categories[0]
 
   if (level === "LOW") {
-    return "No urgency, financial-request, credential-request, or known scam-pattern indicators were found. This content is consistent with normal, non-fraudulent activity based on the evidence collected."
+    if (realFindings.length === 0) {
+      return "No urgency, financial-request, credential-request, or known scam-pattern indicators were found. This content is consistent with normal, non-fraudulent activity based on the evidence collected."
+    }
+    const weakList = formatList(realFindings.slice(0, 3).map((e) => e.label.toLowerCase()))
+    return `A small number of weak indicators were found — ${weakList} — but none reached the threshold associated with likely fraud, and no strong scam-pattern or credential/financial-request signals were present. Overall this content is more consistent with normal activity than with fraud, though the flagged characteristics are listed below for reference.`
   }
 
   const lead = highs.length > 0 ? `This input combines ${formatList(highs.slice(0, 3))}` : "This input shows several weaker fraud indicators"

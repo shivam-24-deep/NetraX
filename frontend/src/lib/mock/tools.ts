@@ -23,6 +23,7 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStageId, string> = {
   "evidence-collection": "Evidence collection",
   "risk-analysis": "Risk analysis",
   "final-assessment": "Final assessment generated",
+  "case-creation": "Case created",
 }
 
 export const PIPELINE_STAGE_ORDER: PipelineStageId[] = [
@@ -32,6 +33,7 @@ export const PIPELINE_STAGE_ORDER: PipelineStageId[] = [
   "evidence-collection",
   "risk-analysis",
   "final-assessment",
+  "case-creation",
 ]
 
 export const AGENT_STAGE_LABELS = ["UNDERSTANDING", "ANALYZING", "VERIFYING", "CORRELATING", "SCORING"] as const

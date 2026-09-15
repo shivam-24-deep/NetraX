@@ -23,6 +23,8 @@ import { generateExplanation, getRecommendations, inferCategory } from "./explai
 import { investigateEmailRemote, type RemoteFinding, type RemoteInvestigationResult, type Severity as RemoteSeverity } from "./email-investigation-client"
 import { mlPredictSms, mlPredictUrl, mlResultToEvidence } from "./ml-client"
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGE_ORDER, TOOL_LABELS } from "./tools"
+import { generateCaseId, generateInvestigationToken } from "@/lib/case-id"
+import { sha256Hex } from "@/lib/hash"
 
 export interface InvestigationInput {
   type: InputType
@@ -34,6 +36,10 @@ export interface InvestigationHandlers {
   onStage?: (stage: PipelineStage) => void
   onTool?: (tool: ToolExecution) => void
   onEvent?: (event: InvestigationLogEvent) => void
+  /** Fired once the evidence graph has been built (email path only). */
+  onGraph?: (graph: RemoteInvestigationResult["evidenceGraph"]) => void
+  /** Fired once the final risk score is known (email path only). */
+  onRisk?: (risk: { score: number; level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" }) => void
 }
 
 function wait(ms: number) {
@@ -216,8 +222,18 @@ export async function runInvestigation(input: InvestigationInput, handlers: Inve
   pushTimeline("Assessment generated", `${level} risk — ${category}`)
   await setStage("final-assessment", "complete", handlers)
 
+  await setStage("case-creation", "running", handlers)
+  const contentForHash = input.type === "TRANSACTION" ? JSON.stringify(input.transactionFields) : input.content
+  const contentHash = await sha256Hex(contentForHash)
+  const caseId = generateCaseId()
+  const investigationToken = generateInvestigationToken()
+  pushTimeline("Case generated", caseId)
+  await setStage("case-creation", "complete", handlers)
+
   const fraudCase: FraudCase = {
-    id: `case_${Date.now().toString(36)}`,
+    id: caseId,
+    investigationToken,
+    emailHash: contentHash,
     inputType: input.type,
     input: input.type === "TRANSACTION" ? formatTransactionSummary(input.transactionFields) : input.content,
     transactionFields: input.transactionFields,
@@ -225,7 +241,7 @@ export async function runInvestigation(input: InvestigationInput, handlers: Inve
     riskScore: score,
     riskLevel: level,
     confidence,
-    status: "OPEN",
+    status: "INVESTIGATION_COMPLETE",
     toolsUsed: toolExecutions,
     evidence: allEvidence,
     explanation,
@@ -346,12 +362,16 @@ export async function runEmailInvestigation(rawEmail: string, handlers: Investig
     handlers.onEvent?.(makeEvent(`${execution.label} ${record.status === "skipped" ? "skipped" : "completed"} — ${execution.summary}`, "tool"))
     pushTimeline(`${execution.label} ${record.status}`, execution.summary)
   }
+  handlers.onGraph?.(result.evidenceGraph)
+  handlers.onEvent?.(makeEvent(`Evidence correlated — ${result.evidenceGraph.nodes.length} node(s), ${result.evidenceGraph.edges.length} relationship(s)`))
+  pushTimeline("Evidence correlated", `${result.evidenceGraph.nodes.length} node(s)`)
   await setStage("evidence-collection", "complete", handlers)
 
   await setStage("risk-analysis", "running", handlers)
   await wait(200)
   const { score, level } = result.riskAssessment
   const confidence: Evidence["severity"] = result.allFindings.length >= 8 ? "HIGH" : result.allFindings.length >= 3 ? "MEDIUM" : "LOW"
+  handlers.onRisk?.({ score, level })
   handlers.onEvent?.(makeEvent(`Risk Engine completed — ${score}/100 (${level})`, "risk"))
   pushTimeline("Risk score calculated", `${score}/100 — ${level}`)
   await setStage("risk-analysis", "complete", handlers)
@@ -359,24 +379,41 @@ export async function runEmailInvestigation(rawEmail: string, handlers: Investig
   await setStage("final-assessment", "running", handlers)
   await wait(150)
   const evidence = result.allFindings.filter((f) => f.severity !== "info").map(remoteFindingToEvidence)
+  // Multiple top reasons can share an identical generic explanation template (e.g. several
+  // "urgency language" findings) — dedupe by text before joining so the summary doesn't repeat itself.
+  const uniqueExplanations = Array.from(new Set(result.riskAssessment.topReasons.map((r) => r.explanation)))
   const explanation =
-    result.riskAssessment.topReasons.length > 0
-      ? result.riskAssessment.topReasons.map((r) => r.explanation).slice(0, 3).join(" ")
+    uniqueExplanations.length > 0
+      ? uniqueExplanations.slice(0, 3).join(" ")
       : "No significant risk indicators were found across header forensics, content analysis, URL analysis, threat intelligence, or geolocation checks."
   const recommendation = getRecommendations(level)
   handlers.onEvent?.(makeEvent("Explanation and recommendation generated"))
   pushTimeline("Assessment generated", `${level} risk`)
   await setStage("final-assessment", "complete", handlers)
 
+  await setStage("case-creation", "running", handlers)
+  const emailHash = await sha256Hex(rawEmail)
+  const caseId = generateCaseId()
+  const investigationToken = generateInvestigationToken()
+  handlers.onEvent?.(makeEvent(`Case ${caseId} created — investigation token ${investigationToken}`))
+  pushTimeline("Case generated", caseId)
+  await setStage("case-creation", "complete", handlers)
+
   const fraudCase: FraudCase = {
-    id: `case_${Date.now().toString(36)}`,
+    id: caseId,
+    investigationToken,
+    emailHash,
+    rawEmailContent: rawEmail,
+    parsedEmail: result.parsedEmail,
+    riskBreakdown: result.riskAssessment.breakdown,
+    allFindings: result.allFindings,
     inputType: "EMAIL",
     input: result.parsedEmail.headers.subject ?? rawEmail.slice(0, 120),
     category: inferCategory([], level),
     riskScore: score,
     riskLevel: level,
     confidence,
-    status: "OPEN",
+    status: "INVESTIGATION_COMPLETE",
     toolsUsed: toolExecutions,
     evidence,
     evidenceGraph: result.evidenceGraph,

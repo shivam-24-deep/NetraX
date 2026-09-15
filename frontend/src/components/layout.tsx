@@ -3,7 +3,6 @@ import {
   BarChart3,
   Bell,
   Bookmark,
-  Bot,
   ChevronLeft,
   Eye,
   Gauge,
@@ -53,8 +52,11 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/watchlist", label: "Watchlist", icon: Eye },
 ]
 
+// /agent-control-room (the archived SMS-pipeline demo) is intentionally not
+// listed here — SIH26106's active story is EMAIL-FIRST. The route/page are
+// preserved, just not part of the active navigation (see investigate.tsx's
+// own comment on the archived SMS/Transaction modules).
 const SYSTEM_NAV: NavItem[] = [
-  { to: "/agent-control-room", label: "Agent Control Room", icon: Bot },
   { to: "/model-performance", label: "Model Performance", icon: Gauge },
   { to: "/settings", label: "Settings", icon: Settings },
 ]

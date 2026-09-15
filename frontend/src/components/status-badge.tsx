@@ -6,6 +6,14 @@ const statusVariant: Record<CaseStatus, "default" | "secondary" | "outline"> = {
   UNDER_REVIEW: "secondary",
   RESOLVED: "outline",
   FALSE_POSITIVE: "outline",
+  ANALYZING: "default",
+  INVESTIGATION: "default",
+  INVESTIGATION_COMPLETE: "secondary",
+  REPORT_GENERATED: "secondary",
+  READY_FOR_REPORTING: "secondary",
+  DEMO_PACKAGE_GENERATED: "secondary",
+  SUBMITTED_EXTERNALLY: "outline",
+  ACKNOWLEDGED: "outline",
 }
 
 const statusLabel: Record<CaseStatus, string> = {
@@ -13,6 +21,14 @@ const statusLabel: Record<CaseStatus, string> = {
   UNDER_REVIEW: "Under Review",
   RESOLVED: "Resolved",
   FALSE_POSITIVE: "False Positive",
+  ANALYZING: "Analyzing",
+  INVESTIGATION: "Investigation",
+  INVESTIGATION_COMPLETE: "Investigation Complete",
+  REPORT_GENERATED: "Report Generated",
+  READY_FOR_REPORTING: "Ready for Reporting",
+  DEMO_PACKAGE_GENERATED: "Demo Package Generated",
+  SUBMITTED_EXTERNALLY: "Submitted Externally",
+  ACKNOWLEDGED: "Acknowledged",
 }
 
 export function StatusBadge({ status }: { status: CaseStatus }) {

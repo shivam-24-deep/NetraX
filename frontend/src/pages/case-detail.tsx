@@ -3,9 +3,13 @@ import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { CyberCellDialog } from "@/components/app/cyber-cell-dialog"
 import { EvidenceCard } from "@/components/app/evidence-card"
 import { EvidenceGraphView } from "@/components/app/evidence-graph-view"
+import { EvidenceIntegrityCard } from "@/components/app/evidence-integrity-card"
+import { HumanReviewCard } from "@/components/app/human-review-card"
 import { InvestigationTimeline } from "@/components/app/investigation-timeline"
+import { ReportActionsCard } from "@/components/app/report-actions-card"
 import { RiskGauge } from "@/components/app/risk-gauge"
 import { ToolStatusRow } from "@/components/app/tool-status"
 import { RiskBadge } from "@/components/risk-badge"
@@ -22,6 +26,7 @@ export default function CaseDetailPage() {
   const fraudCase = useCase(id)
   const navigate = useNavigate()
   const [selectedTool, setSelectedTool] = useState<ToolExecution | null>(null)
+  const [complaintOpen, setComplaintOpen] = useState(false)
 
   if (!fraudCase) {
     return (
@@ -46,7 +51,10 @@ export default function CaseDetailPage() {
         </Button>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-xs text-muted-foreground">{fraudCase.id}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-xs text-muted-foreground">
+              <span>{fraudCase.id}</span>
+              {fraudCase.investigationToken && <span>Token: {fraudCase.investigationToken}</span>}
+            </div>
             <h2 className="text-xl font-semibold tracking-tight">{fraudCase.category}</h2>
           </div>
           <div className="flex items-center gap-2">
@@ -55,6 +63,13 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {Boolean(fraudCase.investigationToken) && (
+        <>
+          <ReportActionsCard fraudCase={fraudCase} onOpenComplaint={() => setComplaintOpen(true)} />
+          <CyberCellDialog fraudCase={fraudCase} open={complaintOpen} onOpenChange={setComplaintOpen} />
+        </>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
@@ -121,6 +136,10 @@ export default function CaseDetailPage() {
               <p className="text-sm text-muted-foreground">{fraudCase.explanation}</p>
             </CardContent>
           </Card>
+
+          {(fraudCase.riskLevel === "HIGH" || fraudCase.riskLevel === "CRITICAL") && <HumanReviewCard fraudCase={fraudCase} />}
+
+          {Boolean(fraudCase.investigationToken) && <EvidenceIntegrityCard fraudCase={fraudCase} />}
         </div>
 
         <div className="flex flex-col gap-6">
