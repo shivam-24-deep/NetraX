@@ -11,6 +11,7 @@ import { Slide3Shift } from "./slides/slide-3-shift"
 import { Slide4DynamicInvestigation } from "./slides/slide-4-dynamic-investigation"
 import { Slide5Architecture } from "./slides/slide-5-architecture"
 import { Slide6ControlRoom } from "./slides/slide-6-control-room"
+import { Slide12MobileGmail } from "./slides/slide-12-mobile-gmail"
 import { Slide7RealResults } from "./slides/slide-7-real-results"
 import { Slide8ThreatIntelGeo } from "./slides/slide-8-threat-intel-geo"
 import { Slide9Impact } from "./slides/slide-9-impact"
@@ -24,6 +25,7 @@ const SLIDES = [
   Slide4DynamicInvestigation,
   Slide5Architecture,
   Slide6ControlRoom,
+  Slide12MobileGmail,
   Slide7RealResults,
   Slide8ThreatIntelGeo,
   Slide9Impact,
@@ -46,7 +48,7 @@ function useIsNarrowViewport(breakpoint = 820) {
 export default function PitchPage() {
   const isNarrow = useIsNarrowViewport()
   const { scale, width, height } = useCanvasScale()
-  const { currentSlide, slideCount, next, prev, goTo, presentationMode } = usePresentationNav()
+  const { currentSlide, slideCount, next, prev, goTo, presentationMode } = usePresentationNav(SLIDES.length)
 
   useEffect(() => {
     document.title = "NetraX — SIH26106"

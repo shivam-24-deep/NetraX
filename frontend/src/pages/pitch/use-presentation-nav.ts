@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-const SLIDE_COUNT = 11
 const LOCK_MS = 650 // matches the slide transition duration — one gesture, one slide
 const WHEEL_THRESHOLD = 40
 
-export function usePresentationNav() {
+export function usePresentationNav(slideCount: number) {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [presentationMode, setPresentationMode] = useState(false)
   const currentSlideRef = useRef(0)
@@ -21,13 +20,13 @@ export function usePresentationNav() {
   const goTo = useCallback(
     (index: number) => {
       if (locked.current) return
-      const clamped = Math.max(0, Math.min(SLIDE_COUNT - 1, index))
+      const clamped = Math.max(0, Math.min(slideCount - 1, index))
       if (clamped === currentSlideRef.current) return
       currentSlideRef.current = clamped
       setCurrentSlide(clamped)
       lock()
     },
-    [lock],
+    [lock, slideCount],
   )
 
   const next = useCallback(() => goTo(currentSlideRef.current + 1), [goTo])
@@ -108,5 +107,5 @@ export function usePresentationNav() {
     }
   }, [])
 
-  return { currentSlide, slideCount: SLIDE_COUNT, next, prev, goTo, presentationMode }
+  return { currentSlide, slideCount, next, prev, goTo, presentationMode }
 }

@@ -110,9 +110,17 @@ export function Slide8ThreatIntelGeo() {
               <MapPin className="size-10 text-primary" />
               <div>
                 <p className="font-mono text-lg text-foreground">185.220.101.7</p>
-                <p className="text-[14px] text-muted-foreground">AS-EXAMPLE-NET · Region: Eastern Europe (approx.)</p>
+                <p className="text-[14px] text-muted-foreground">AS60729 · Brandenburg, Germany (approx.)</p>
               </div>
             </div>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.0 }}
+              className="mt-3 font-mono text-[11px] text-primary/70"
+            >
+              Real MaxMind lookup, verified live — not a mocked example.
+            </motion.p>
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
