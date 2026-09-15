@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import type { FraudCase } from "@/types/fraud"
 
 const BORDER_TONE: Record<FraudCase["riskLevel"], string> = {
+  CRITICAL: "border-l-risk-critical",
   HIGH: "border-l-risk-high",
   MEDIUM: "border-l-risk-medium",
   LOW: "border-l-risk-low",

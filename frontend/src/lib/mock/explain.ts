@@ -11,9 +11,11 @@ export function generateExplanation(level: RiskLevel, evidence: Evidence[], cate
   const lead = highs.length > 0 ? `This input combines ${formatList(highs.slice(0, 3))}` : "This input shows several weaker fraud indicators"
   const patternClause = category ? `, a combination strongly associated with ${category.toLowerCase()}` : ""
   const confidenceClause =
-    level === "HIGH"
-      ? ". Taken together, the evidence points to a high likelihood of fraudulent intent."
-      : ". Taken together, the evidence is inconclusive but warrants caution."
+    level === "CRITICAL"
+      ? ". Taken together, the evidence points to a very high likelihood of fraudulent intent, corroborated across multiple independent sources."
+      : level === "HIGH"
+        ? ". Taken together, the evidence points to a high likelihood of fraudulent intent."
+        : ". Taken together, the evidence is inconclusive but warrants caution."
 
   return `${lead}${patternClause}${confidenceClause}`
 }
@@ -26,6 +28,12 @@ function formatList(items: string[]): string {
 }
 
 const RECOMMENDATIONS: Record<RiskLevel, string[]> = {
+  CRITICAL: [
+    "Do not click any links, reply, or download attachments",
+    "Do not share OTP, PIN, CVV, passwords, or credentials with anyone",
+    "Escalate to your security team immediately",
+    "Report the message to your bank and to cybercrime.gov.in",
+  ],
   HIGH: [
     "Do not click any links or download attachments",
     "Do not share OTP, PIN, CVV, or passwords with anyone",

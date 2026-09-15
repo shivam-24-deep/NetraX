@@ -1,0 +1,20 @@
+From: Billing Department <billing@vendor-invoices.net>
+To: accounts.payable@example.com
+Subject: Invoice #88213 - payment overdue
+Date: Fri, 7 Mar 2025 14:05:00 +0000
+Message-ID: <inv88213@vendor-invoices.net>
+Received: from mail.vendor-invoices.net (mail.vendor-invoices.net [198.51.100.9]) by mx.example.com with SMTP; Fri, 7 Mar 2025 14:05:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+Dear Accounts Payable,
+
+Your invoice #88213 for outstanding balance of $4,850.00 is now overdue.
+Please review the invoice and remit payment via the link below within 48
+hours to avoid late fees and service interruption.
+
+Review invoice and pay now: http://bit.ly/invoice-88213-pay
+
+Routing number and account details are on file — no need to re-enter
+banking information, just confirm the payment amount.
+
+Billing Department

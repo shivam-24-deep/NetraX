@@ -14,6 +14,14 @@ export default defineConfig({
   server: {
     // Allows sharing the local dev server through a tunnel (e.g. ngrok) for quick previews.
     allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app'],
+    // Proxy the two local backends through this same origin/port, so the
+    // browser only ever talks to :5173 — sidesteps any cross-port browser
+    // networking issue (firewall, extension, proxy) unrelated to whether
+    // the backends themselves are reachable from this machine.
+    proxy: {
+      '/local-api': { target: 'http://localhost:8787', changeOrigin: true, rewrite: (p) => p.replace(/^\/local-api/, '') },
+      '/ml-api': { target: 'http://localhost:8000', changeOrigin: true, rewrite: (p) => p.replace(/^\/ml-api/, '') },
+    },
   },
   preview: {
     allowedHosts: ['.ngrok-free.app', '.ngrok.io', '.ngrok.app'],

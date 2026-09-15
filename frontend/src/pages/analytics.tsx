@@ -15,7 +15,7 @@ import {
 } from "recharts"
 
 import { chartTooltipStyle, ChartCard } from "@/components/app/chart-card"
-import { modelMetrics } from "@/lib/mock/model-metrics"
+import { realModelMetrics } from "@/lib/mock/real-model-metrics"
 import { useCases } from "@/lib/mock/store"
 import { getTrendData } from "@/lib/mock/trend-data"
 
@@ -27,13 +27,16 @@ const RISK_COLORS: Record<string, string> = {
 
 const CHART_PALETTE = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)", "var(--color-chart-5)"]
 
-const modelPerformanceData = [
-  { metric: "Accuracy", value: modelMetrics.accuracy },
-  { metric: "Precision", value: modelMetrics.precision },
-  { metric: "Recall", value: modelMetrics.recall },
-  { metric: "F1", value: modelMetrics.f1 },
-  { metric: "ROC-AUC", value: modelMetrics.rocAuc },
-]
+// Per-model breakdown across all 4 real trained models (Email / URL / SMS /
+// Transaction) — the dedicated Model Performance page shows each model's
+// full detail (confusion matrix, feature importance, candidate comparison);
+// this chart gives the analytics overview a side-by-side comparison instead
+// of flattening everything into one mean.
+const modelComparisonData = realModelMetrics.map((m) => ({
+  name: m.displayName.replace(" Classifier", "").replace(" Detector", ""),
+  F1: m.metrics.f1,
+  "ROC-AUC": m.metrics.rocAuc,
+}))
 
 export default function AnalyticsPage() {
   const cases = useCases()
@@ -143,13 +146,15 @@ export default function AnalyticsPage() {
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="Model Performance">
-          <BarChart data={modelPerformanceData}>
+        <ChartCard title="Model Performance — All Trained Models" demo={false}>
+          <BarChart data={modelComparisonData}>
             <CartesianGrid vertical={false} stroke="var(--color-border)" />
-            <XAxis dataKey="metric" fontSize={11} stroke="var(--color-muted-foreground)" />
+            <XAxis dataKey="name" fontSize={10.5} stroke="var(--color-muted-foreground)" angle={-15} textAnchor="end" height={46} />
             <YAxis domain={[0, 1]} fontSize={11} stroke="var(--color-muted-foreground)" width={28} />
-            <Tooltip contentStyle={chartTooltipStyle} />
-            <Bar dataKey="value" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
+            <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => `${(Number(v) * 100).toFixed(1)}%`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="F1" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="ROC-AUC" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartCard>
       </div>

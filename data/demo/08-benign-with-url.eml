@@ -1,0 +1,14 @@
+From: Dana Kim <dana@example.com>
+To: friend@example.com
+Subject: Check out this article
+Date: Sun, 9 Mar 2025 15:45:00 +0000
+Message-ID: <a91f@mail.example.com>
+Authentication-Results: mx.example.com; spf=pass; dkim=pass; dmarc=pass
+Received: from mail.example.com (mail.example.com [203.0.113.80]) by mx.example.com with ESMTPS; Sun, 9 Mar 2025 15:45:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+Hey! Saw this and thought of you: https://en.wikipedia.org/wiki/Bayesian_inference
+
+Might be useful for that project you mentioned. Let's catch up soon.
+
+Dana

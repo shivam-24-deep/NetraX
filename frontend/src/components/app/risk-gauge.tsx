@@ -5,12 +5,14 @@ import { cn } from "@/lib/utils"
 import type { RiskLevel } from "@/types/fraud"
 
 const RISK_COLOR: Record<RiskLevel, string> = {
+  CRITICAL: "var(--color-risk-critical)",
   HIGH: "var(--color-risk-high)",
   MEDIUM: "var(--color-risk-medium)",
   LOW: "var(--color-risk-low)",
 }
 
 const RISK_TEXT: Record<RiskLevel, string> = {
+  CRITICAL: "text-risk-critical",
   HIGH: "text-risk-high",
   MEDIUM: "text-risk-medium",
   LOW: "text-risk-low",

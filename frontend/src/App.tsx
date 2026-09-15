@@ -15,6 +15,7 @@ import LoginPage from "@/pages/login"
 import ModelPerformancePage from "@/pages/model-performance"
 import MyInvestigationsPage from "@/pages/my-investigations"
 import NotFoundPage from "@/pages/not-found"
+import PitchPage from "@/pages/pitch"
 import SavedCasesPage from "@/pages/saved-cases"
 import SettingsPage from "@/pages/settings"
 import SignupPage from "@/pages/signup"
@@ -37,6 +38,7 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/pitch" element={<PitchPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>

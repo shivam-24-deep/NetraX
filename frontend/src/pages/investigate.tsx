@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { AgentOrb } from "@/components/app/agent-orb"
 import { EvidenceCard } from "@/components/app/evidence-card"
+import { EvidenceGraphView } from "@/components/app/evidence-graph-view"
 import { PipelineStepper } from "@/components/app/pipeline-stepper"
 import { RiskBreakdown } from "@/components/app/risk-breakdown"
 import { RiskGauge } from "@/components/app/risk-gauge"
@@ -18,13 +19,17 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { INPUT_TYPE_ICONS, INPUT_TYPE_LABELS } from "@/lib/input-type"
-import { runInvestigation } from "@/lib/mock/engine"
+import { runEmailInvestigation, runInvestigation } from "@/lib/mock/engine"
 import { addCase, toggleSaved, updateCaseStatus } from "@/lib/mock/store"
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGE_ORDER } from "@/lib/mock/tools"
 import { cn } from "@/lib/utils"
 import type { FraudCase, InputType, PipelineStage, PipelineStageId, ToolExecution, TransactionFields } from "@/types/fraud"
 
-const TYPES: InputType[] = ["SMS", "EMAIL", "URL", "PHONE", "TRANSACTION"]
+// SIH26106's official scope is email threat detection, but the original
+// SMS/Transaction fraud modules (rule-based analyzers + trained ML models,
+// see docs/IMPLEMENTATION_PLAN.md §Decisions) were re-enabled in the UI on
+// user request — the underlying logic was never removed, only hidden here.
+const TYPES: InputType[] = ["EMAIL", "URL", "SMS", "TRANSACTION"]
 
 const STAGE_TO_AGENT_INDEX: Record<PipelineStageId, number> = {
   input: 0,
@@ -35,14 +40,43 @@ const STAGE_TO_AGENT_INDEX: Record<PipelineStageId, number> = {
   "final-assessment": 4,
 }
 
-const QUICK_EXAMPLES: { label: string; type: InputType; content: string }[] = [
-  { label: "Try phishing SMS", type: "SMS", content: "Congratulations! You have won ₹50,000 in the HDFC Lucky Draw. Click here immediately to claim: bit.ly/xyz123" },
-  { label: "Try KYC scam", type: "SMS", content: "Your KYC will expire today. Verify immediately at secure-kyc-update.info to avoid account suspension." },
-  { label: "Try suspicious URL", type: "URL", content: "http://secure-login-verify-account.paym3nt-update.info/reset" },
-  { label: "Try normal message", type: "GENERAL" as InputType, content: "Hey, are we still meeting for lunch at 1pm tomorrow?" },
-]
+const PHISHING_EMAIL_EXAMPLE = [
+  "From: PayPal Security <security@totally-not-paypal.xyz>",
+  "Reply-To: attacker@other.com",
+  "Authentication-Results: mx.google.com; spf=fail; dkim=fail; dmarc=fail",
+  "Received: from mail.sender.com (mail.sender.com [8.8.8.8]) by mx.example.com; Mon, 1 Sep 2025 10:00:00 +0000",
+  "Subject: Urgent: Account Verification Required",
+  "",
+  "Please verify your password immediately, urgent! Visit http://paypa1.com/login to avoid suspension.",
+].join("\r\n")
+
+const BENIGN_EMAIL_EXAMPLE = [
+  "From: Dana Kim <dana@example.com>",
+  "Subject: Lunch tomorrow?",
+  "",
+  "Hey, are we still on for lunch at 1pm tomorrow?",
+].join("\r\n")
+
+const SCAM_SMS_EXAMPLE =
+  "Dear customer, your KYC will expire today. Update immediately via https://kyc-verify-sbi.in/update or your account will be blocked within 24 hrs."
+
+const SUSPICIOUS_TX_EXAMPLE: TransactionFields = {
+  amount: "48500",
+  merchant: "Unknown Merchant",
+  location: "Pune",
+  time: "02:14",
+  device: "unrecognized / new device",
+}
 
 const EMPTY_TX: TransactionFields = { amount: "", merchant: "", location: "", time: "", device: "" }
+
+const QUICK_EXAMPLES: { label: string; type: InputType; content: string; txFields?: TransactionFields }[] = [
+  { label: "Try phishing email", type: "EMAIL", content: PHISHING_EMAIL_EXAMPLE },
+  { label: "Try normal email", type: "EMAIL", content: BENIGN_EMAIL_EXAMPLE },
+  { label: "Try suspicious URL", type: "URL", content: "http://secure-login-verify-account.paym3nt-update.info/reset" },
+  { label: "Try scam SMS", type: "SMS", content: SCAM_SMS_EXAMPLE },
+  { label: "Try suspicious transaction", type: "TRANSACTION", content: "", txFields: SUSPICIOUS_TX_EXAMPLE },
+]
 
 function initialStages(): PipelineStage[] {
   return PIPELINE_STAGE_ORDER.map((id) => ({ id, label: PIPELINE_STAGE_LABELS[id], status: "waiting" as const }))
@@ -65,8 +99,9 @@ export default function InvestigatePage() {
     : content.trim() !== ""
 
   function applyExample(example: (typeof QUICK_EXAMPLES)[number]) {
-    setInputType(example.type === ("GENERAL" as InputType) ? "SMS" : example.type)
+    setInputType(example.type)
     setContent(example.content)
+    setTxFields(example.txFields ?? EMPTY_TX)
   }
 
   async function start() {
@@ -75,20 +110,28 @@ export default function InvestigatePage() {
     setTools([])
     setResultCase(null)
 
-    const result = await runInvestigation(
-      { type: inputType, content, transactionFields: isTransaction ? txFields : undefined },
-      {
-        onStage: (stage) => setStages((prev) => prev.map((s) => (s.id === stage.id ? stage : s))),
-        onTool: (tool) =>
-          setTools((prev) => {
-            const idx = prev.findIndex((t) => t.id === tool.id)
-            if (idx === -1) return [...prev, tool]
-            const next = [...prev]
-            next[idx] = tool
-            return next
-          }),
-      },
-    )
+    const handlers = {
+      onStage: (stage: PipelineStage) => setStages((prev) => prev.map((s) => (s.id === stage.id ? stage : s))),
+      onTool: (tool: ToolExecution) =>
+        setTools((prev) => {
+          const idx = prev.findIndex((t) => t.id === tool.id)
+          if (idx === -1) return [...prev, tool]
+          const next = [...prev]
+          next[idx] = tool
+          return next
+        }),
+    }
+
+    const result =
+      inputType === "EMAIL"
+        ? await runEmailInvestigation(content, handlers)
+        : await runInvestigation({ type: inputType, content, transactionFields: txFields }, handlers)
+
+    if (!result) {
+      toast.error("Investigation backend unavailable — start it with: node server/local-api.ts")
+      setPhase("idle")
+      return
+    }
 
     addCase(result)
     setResultCase(result)
@@ -401,6 +444,18 @@ function ResultView({
           <p className="text-sm text-muted-foreground">{fraudCase.explanation}</p>
         </CardContent>
       </Card>
+
+      {fraudCase.evidenceGraph && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Evidence Graph</CardTitle>
+            <CardDescription>Email → sender/URL → domain/threat-intel → IP → ASN → country, built from the real investigation evidence above.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EvidenceGraphView graph={fraudCase.evidenceGraph} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card className={cn(fraudCase.riskLevel === "HIGH" && "border-risk-high/40")}>
         <CardHeader>

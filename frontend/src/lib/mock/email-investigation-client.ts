@@ -1,0 +1,116 @@
+/**
+ * Client for the real email investigation backend (Phases 3-13).
+ *
+ * Talks to server/local-api.ts by default (a Node HTTP server exposing the
+ * same shared TS logic the Supabase Edge Functions in supabase/functions/
+ * use — see that file's header comment for why: no Deno CLI or Docker is
+ * available in this environment to run/deploy the Edge Functions directly).
+ * Set VITE_LOCAL_API_URL to point elsewhere (e.g. a deployed Edge Function
+ * base URL) without any other code change.
+ */
+
+const LOCAL_API_URL = import.meta.env.VITE_LOCAL_API_URL || "http://localhost:8787"
+
+export type ToolStatus = "success" | "skipped" | "error"
+
+export interface RemoteToolExecutionRecord {
+  tool: string
+  status: ToolStatus
+  reason?: string
+  startedAt: string
+  durationMs: number
+  findingCount: number
+}
+
+export type Severity = "info" | "low" | "medium" | "high" | "critical"
+
+export interface RemoteFinding {
+  id: string
+  finding: string
+  severity: Severity
+  evidence: string
+  source: string
+  confidence: "low" | "medium" | "high"
+  explanation: string
+}
+
+export interface RemoteRiskAssessment {
+  score: number
+  level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  breakdown: { source: string; rawPoints: number; cappedPoints: number; findingIds: string[] }[]
+  topReasons: { finding: string; severity: Severity; source: string; explanation: string }[]
+}
+
+export interface RemoteGraphNode {
+  id: string
+  type: string
+  label: string
+  data: Record<string, unknown>
+}
+
+export interface RemoteGraphEdge {
+  from: string
+  to: string
+  relationship: string
+}
+
+export interface RemoteInvestigationResult {
+  parsedEmail: {
+    format: string
+    headers: Record<string, unknown> & {
+      from?: string
+      subject?: string
+      spf?: string
+      dkim?: string
+      dmarc?: string
+    }
+    body: { text?: string; html?: string; htmlAsText?: string }
+    indicators: {
+      urls: string[]
+      domains: string[]
+      emailAddresses: string[]
+      ipAddresses: string[]
+      phoneNumbers: string[]
+      cryptoAddresses: string[]
+      attachments: { filename?: string; contentType?: string; sizeBytes?: number }[]
+    }
+    warnings: string[]
+  }
+  allFindings: RemoteFinding[]
+  riskAssessment: RemoteRiskAssessment
+  evidenceGraph: { nodes: RemoteGraphNode[]; edges: RemoteGraphEdge[] }
+  toolLog: RemoteToolExecutionRecord[]
+}
+
+let apiAvailable: boolean | null = null
+
+export function isEmailApiKnownAvailable(): boolean | null {
+  return apiAvailable
+}
+
+export async function investigateEmailRemote(rawEmail: string): Promise<RemoteInvestigationResult | null> {
+  try {
+    const controller = new AbortController()
+    // Investigations make several real network calls in sequence (ML model,
+    // threat intel, geolocation) — a longer timeout than a single lookup.
+    const timeout = setTimeout(() => controller.abort(), 25000)
+    const res = await fetch(`${LOCAL_API_URL}/investigate-email`, {
+      method: "POST",
+      // ngrok-skip-browser-warning bypasses ngrok's one-time interstitial HTML
+      // page when LOCAL_API_URL is a tunnel — harmless no-op against localhost.
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      body: JSON.stringify({ input: rawEmail }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    if (!res.ok) {
+      apiAvailable = false
+      return null
+    }
+    apiAvailable = true
+    return (await res.json()) as RemoteInvestigationResult
+  } catch {
+    apiAvailable = false
+    return null
+  }
+}

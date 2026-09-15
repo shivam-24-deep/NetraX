@@ -13,6 +13,7 @@ type Filter = "ALL" | RiskLevel | CaseStatus
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "ALL", label: "All" },
+  { value: "CRITICAL", label: "Critical" },
   { value: "HIGH", label: "High" },
   { value: "MEDIUM", label: "Medium" },
   { value: "LOW", label: "Low" },

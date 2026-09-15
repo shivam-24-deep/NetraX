@@ -1,0 +1,21 @@
+From: Priya Sharma <priya.sharma@acmecorp.example>
+To: engineering-team@acmecorp.example
+Subject: Q3 roadmap review — notes attached
+Date: Mon, 3 Mar 2025 09:12:00 +0530
+Message-ID: <a1b2c3d4@mail.acmecorp.example>
+Authentication-Results: mx.acmecorp.example; spf=pass smtp.mailfrom=acmecorp.example; dkim=pass header.d=acmecorp.example; dmarc=pass
+Received: from mail.acmecorp.example (mail.acmecorp.example [203.0.113.44]) by mx.acmecorp.example with ESMTPS; Mon, 3 Mar 2025 09:12:00 +0530
+Content-Type: text/plain; charset=utf-8
+
+Hi team,
+
+Notes from this morning's roadmap review are attached to the shared drive
+folder as usual. A few things to flag before Thursday's standup:
+
+- The auth service migration is on track for end of sprint
+- We still need sign-off from design on the new onboarding flow
+- Please log hours in the tracker before Friday EOD
+
+Let me know if you have questions.
+
+Priya

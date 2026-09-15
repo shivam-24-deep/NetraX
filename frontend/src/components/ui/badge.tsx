@@ -14,6 +14,7 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline: "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        "risk-critical": "border-transparent bg-risk-critical-bg text-risk-critical",
         "risk-high": "border-transparent bg-risk-high-bg text-risk-high",
         "risk-medium": "border-transparent bg-risk-medium-bg text-risk-medium",
         "risk-low": "border-transparent bg-risk-low-bg text-risk-low",

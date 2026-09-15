@@ -3,13 +3,15 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import type { Evidence } from "@/types/fraud"
 
-const SEVERITY_WIDTH: Record<Evidence["severity"], number> = { HIGH: 92, MEDIUM: 58, LOW: 22 }
+const SEVERITY_WIDTH: Record<Evidence["severity"], number> = { CRITICAL: 100, HIGH: 92, MEDIUM: 58, LOW: 22 }
 const SEVERITY_BAR: Record<Evidence["severity"], string> = {
+  CRITICAL: "bg-risk-critical",
   HIGH: "bg-risk-high",
   MEDIUM: "bg-risk-medium",
   LOW: "bg-risk-low",
 }
 const SEVERITY_TEXT: Record<Evidence["severity"], string> = {
+  CRITICAL: "text-risk-critical",
   HIGH: "text-risk-high",
   MEDIUM: "text-risk-medium",
   LOW: "text-risk-low",

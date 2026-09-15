@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { EvidenceCard } from "@/components/app/evidence-card"
+import { EvidenceGraphView } from "@/components/app/evidence-graph-view"
 import { InvestigationTimeline } from "@/components/app/investigation-timeline"
 import { RiskGauge } from "@/components/app/risk-gauge"
 import { ToolStatusRow } from "@/components/app/tool-status"
@@ -80,6 +81,17 @@ export default function CaseDetailPage() {
               ))}
             </CardContent>
           </Card>
+
+          {fraudCase.evidenceGraph && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Evidence Graph</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EvidenceGraphView graph={fraudCase.evidenceGraph} />
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

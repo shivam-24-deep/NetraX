@@ -1,88 +1,197 @@
 # NetraX
 
-An agentic AI system for intelligent cyber-fraud detection and investigation — built for Smart India Hackathon (SIH).
+An agentic AI system for email threat detection and forensic intelligence —
+built for Smart India Hackathon 2026, Problem Statement **SIH26106**:
+*"AI-Powered Email Threat Detection, GeoLocation and Forensic Intelligence
+Platform"* (AICTE Cyber Security Cell).
 
 ## 1. Overview
 
-NetraX lets an analyst paste a suspicious SMS, email, URL, phone number, or transaction and get back a clear, explainable risk assessment: a risk score, the specific evidence behind it, and safe next actions. Under the hood, an **agentic AI investigation system** — not a single chatbot prompt — classifies the input, decides which specialized tools are relevant, runs them, fuses their evidence deterministically, and only then explains the *already-computed* result in plain language.
+NetraX lets an analyst submit a suspicious email — raw `.eml`, pasted text,
+or structured JSON — and get back a real, explainable forensic
+investigation: a deterministic risk score (0-100), the specific evidence
+behind it, an interactive evidence graph, and a recommended next action.
+Under the hood, an **agentic investigation system** parses the email,
+dynamically decides which downstream tools are actually relevant (no URL →
+skip URL/threat-intel tools entirely; no public source IP → skip
+geolocation entirely), runs them, and fuses their evidence deterministically
+— an LLM is never in the loop for scoring, only (optionally, not yet wired)
+for explaining an already-computed result.
 
-The current build is a **frontend-only, premium SOC-style UI** running entirely on local mock data and a local rule-based "agent" engine — no LLM, ML service, or investigation backend is wired up yet (see [§4](#4-current-architecture) and [§9 Limitations](#9-limitations)). Sign-in is real (Supabase Auth), everything past the login screen is local/mock.
+This is not a mockup. Header forensics (SPF/DKIM/DMARC, spoofing,
+homoglyph/typosquat domains, Received-chain analysis), URL structural
+analysis, threat-intelligence lookups (PhishTank/URLhaus), IP geolocation
+(MaxMind), and a real trained ML content classifier (F1=0.961 on held-out
+SpamAssassin data) are all real, working code with **203 automated tests**
+(169 TypeScript + 34 Python) — see `docs/FINAL_STATUS.md` for the complete,
+honest account of what's built, tested, and still incomplete.
+
+**Note on the name**: this repo was originally built as a general
+SMS/URL/transaction fraud prototype (also called NetraX, briefly
+"FraudShield AI") before being pivoted to SIH26106's email-forensics scope.
+Those earlier modules are archived — code kept for reference, dropped from
+the active UI. See `docs/CURRENT_STATE.md` and `docs/IMPLEMENTATION_PLAN.md`
+for that history.
 
 ## 2. Features
 
-- **Investigate**: type-aware input (Message / Email / URL / Phone / Transaction), a live animated multi-stage investigation (agent orb, pipeline stepper, per-tool execution panel), then a full result view — risk gauge, evidence breakdown, plain-language explanation, and a recommended-action panel with real Mark Reviewed / Report / Save Case actions.
-- **Agent Control Room**: an interactive node diagram of the actual agent architecture (Fraud Agent → 4 analyzer tools → Evidence Fusion → Risk Engine → Assessment) with a live, timestamped, auditable event stream — no hidden chain-of-thought is ever shown.
-- **Cases / Case Details / Alerts**: searchable, filterable case list and alert center backed by a shared local store; case actions (resolve, false positive, review, save, watch) persist across the session via `localStorage`.
-- **Analytics / Model Performance**: Recharts dashboards (trend, category mix, risk distribution, tool usage) plus demo ML metrics (precision/recall/F1/ROC-AUC/confusion matrix) — accuracy is deliberately not the headline metric, since fraud data is imbalanced.
-- **Threat Intelligence**: a searchable local knowledge base of indicator types (URL/Domain/Phone/Pattern/Scam Type), clearly labeled as demo data.
-- Command palette (`⌘K` / `Ctrl+K`), `N` to jump to Investigate, collapsible sidebar, mobile bottom nav, dark-first glass UI.
+- **Investigate**: submit a raw email, watch the real multi-tool
+  investigation pipeline execute, then see a full result — risk score,
+  evidence breakdown, an interactive evidence graph (Email → Sender/URL →
+  Domain/Threat-Intel → IP → ASN → Country), and a recommended action.
+- **Header forensics**: SPF/DKIM/DMARC results, display-name spoofing,
+  Reply-To/Return-Path mismatches, homoglyph/punycode domain detection,
+  typosquatting (Levenshtein-distance based), Received-chain parsing and
+  timestamp-anomaly detection — every finding cites its literal evidence;
+  absent headers say so explicitly, never guessed.
+- **URL analysis**: structural phishing indicators (IP-as-hostname, `@`
+  tricks, shorteners, encoding density, TLD reputation) plus the same
+  homoglyph/typosquat checks applied to link domains.
+- **Threat intelligence**: PhishTank and URLhaus adapters — "not found" is
+  never reported as "safe," and an unreachable/unconfigured provider
+  reports "unavailable," never a fabricated result.
+- **Geolocation**: MaxMind-based IP→country/ASN lookup, restricted to
+  public IPs only (real CIDR classification filters private/reserved/
+  loopback addresses), always phrased as approximate infrastructure
+  location, never an exact address.
+- **Evidence Graph**: click any node (email, sender, domain, URL, IP, ASN,
+  country, threat-intel match) to inspect its underlying evidence.
+- Case detail pages, alerts, analytics, and command palette (`⌘K`/`Ctrl+K`)
+  carried over from the earlier NetraX build.
 
 ## 3. Why agentic, not a chatbot
 
-- **Why AI?** It turns unstructured, free-text messages into a plain-language explanation.
-- **Why ML (eventually)?** Quantitative, trained fraud/anomaly scores instead of hand-waving — today this is simulated by a transparent, deterministic rule-based scorer with the same shape a trained model would have.
-- **Why agentic?** The orchestrator decides *which* tools a given input needs and only runs those (an SMS with a URL triggers different tools than a raw transaction) — visible live in both the Investigate page and the Agent Control Room.
-- **Why not a simple chatbot?** The agent performs a multi-step investigation over structured evidence with a deterministic risk score and a full audit trail, not a single free-form reply.
+- **Why AI?** Turns unstructured email content into structured, explainable
+  evidence.
+- **Why ML?** The email content classifier is a real model trained on real
+  data (SpamAssassin corpus) with real, measured metrics — not a simulated
+  score.
+- **Why agentic?** The orchestrator decides *which* tools a given email
+  needs and only runs those, with every skip logged and auditable — see
+  `docs/AGENT_ARCHITECTURE.md`.
+- **Why deterministic scoring?** The risk score is computed by a documented,
+  testable formula (`docs/RISK_SCORING.md`), never by an LLM guessing a
+  number.
 
-## 4. Current architecture
+## 4. Architecture
 
 ```
-frontend/src/
-  lib/mock/
-    analyzers.ts     deterministic heuristics: message / URL / scam-pattern / transaction analyzers + risk fusion
-    engine.ts         orchestrator — dynamic tool selection, simulated async pipeline, builds the final case
-    explain.ts        template-based explanation + recommendation generation (never invents evidence)
-    store.ts          shared case store (pub-sub + localStorage), the "database" for this build
-    seed-cases.ts, threat-intel.ts, model-metrics.ts, notifications.ts, trend-data.ts   demo datasets
-  components/app/      reusable domain UI: MetricCard, RiskGauge, EvidenceCard, ToolStatusRow,
-                        PipelineStepper, AgentOrb, AgentNode, CaseRow, AlertCard, CommandPalette, …
-  components/ui/       shadcn/ui primitives (hand-written — the shadcn CDN isn't reachable in this environment)
-  pages/               one file per route
-```
+frontend/                 React 19 + Vite + TS + Tailwind v4
+  src/lib/mock/engine.ts    runEmailInvestigation() calls the real backend;
+                             legacy SMS/URL/transaction mock analyzers kept,
+                             archived from the active UI
+  src/components/app/       evidence-graph-view.tsx (new), risk-gauge,
+                             evidence-card, pipeline-stepper, etc. (reused)
 
-`runInvestigation()` in `engine.ts` is the seam meant for a real backend later: swap its internals for calls to a real Message/URL/Transaction analyzer service, a real ML risk model, and an LLM explanation call, without changing any page component — they only depend on the `FraudCase` / `ToolExecution` / `PipelineStage` shapes in `types/fraud.ts`.
+supabase/functions/_shared/   the real investigation logic (Phases 3-13),
+                               portable TypeScript with zero Deno-specific
+                               code — proven by running its own test suite
+                               (169 tests) under Node
+  email/                      parser, MIME handling, indicator extraction
+  email/forensics/            header forensics engine
+  url-analysis/                URL structural + brand/homoglyph analysis
+  threat-intel/                PhishTank + URLhaus adapters
+  geolocation/                  IP classification + MaxMind client
+  agent/orchestrator.ts         dynamic tool-selecting investigation agent
+  risk-engine/                  deterministic 0-100 scoring
+  evidence-graph/                nodes/edges builder
+
+supabase/functions/*/index.ts   thin Deno.serve() wrappers around the above
+                                 (written, not yet deployed — see docs/FINAL_STATUS.md)
+
+server/local-api.ts        Node HTTP server exposing the SAME shared logic
+                            — the actually-running local backend today,
+                            since no Deno CLI/Docker is available here
+
+ml/                        Python training pipeline (SMS[archived], URL,
+                            transaction[archived], and the new email
+                            content classifier), FastAPI inference service
+
+supabase/migrations/        real Postgres schema + RLS (written, not yet
+                             applied to a live database — see FINAL_STATUS.md)
+
+data/, scripts/data/        real dataset acquisition (Enron, SpamAssassin,
+                             URLhaus, UCI Phishing) with provenance metadata
+```
 
 ## 5. Tech stack
 
-- React 19, TypeScript, Vite, Tailwind CSS v4, shadcn/ui (hand-written), Framer Motion, Recharts, lucide-react, cmdk
-- Supabase Auth for sign-in/sign-up (real — `frontend/src/lib/auth.tsx`, `lib/supabase.ts`)
-- Everything else (cases, alerts, analytics, threat intel, model metrics) is local mock data/state — see §4
+- React 19, TypeScript, Vite, Tailwind CSS v4, hand-written shadcn/ui-style
+  components, Framer Motion, Recharts, lucide-react, cmdk
+- Supabase Auth for sign-in/sign-up
+- Node.js (built-in `http`, zero dependencies) for the local investigation
+  API — proven portable to Deno/Supabase Edge Functions
+- Python (scikit-learn, FastAPI) for ML training and inference
 
 ## 6. Local setup
 
 ```bash
+# 1. Frontend
 cd frontend
 npm install
-npm run dev
+npm run dev              # http://localhost:5173
+
+# 2. ML inference API (separate terminal)
+cd ml
+python -m venv .venv
+./.venv/Scripts/python.exe -m pip install -r requirements-ml.txt
+./.venv/Scripts/python.exe -m uvicorn api.server:app --port 8000
+
+# 3. Investigation API (separate terminal, repo root)
+node server/local-api.ts    # http://localhost:8787
 ```
 
-Then open `http://localhost:5173`. You'll land on `/login` — sign up for an account (Supabase sends a confirmation email) or sign in, then you're into the app. All app data below the auth wall is local to your browser session (`localStorage`), not shared with other users.
+Then open `http://localhost:5173`. With `VITE_SKIP_AUTH=true` in
+`frontend/.env` you land straight on the dashboard; otherwise sign up via
+Supabase Auth first. Go to **Investigate**, pick **Email**, click one of the
+quick examples (or paste a real `.eml`), and run a real investigation.
 
-`frontend/.env` needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for auth to work — copy `.env.example` at the repo root and fill them in from your Supabase project settings if `.env` isn't already present.
+`frontend/.env` needs `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (auth) —
+copy `.env.example` if `.env` isn't present. See `.env.example` for the
+optional threat-intel/geolocation credentials.
 
 ## 7. Demo script
 
-1. **Investigate** → click "Try phishing SMS" → Start AI Investigation → watch the pipeline animate → see the 94%+ HIGH RISK result with evidence and recommendations.
-2. **Agent Control Room** → Run Demo Investigation → watch the node diagram light up and the event stream fill in live.
-3. **Cases** → open the case you just created → try Mark Resolved / Save Case → see it reflected on **Saved Cases** / **My Investigations**.
-4. **Analytics** and **Model Performance** for the judge-facing metrics view.
+1. **Investigate** → Email → "Try phishing email" → Start AI Investigation
+   → watch the real pipeline run → see the risk score, evidence, and
+   evidence graph for a genuinely-detected phishing case.
+2. Try "Try normal email" → confirm it correctly scores LOW.
+3. Open the resulting case from **Cases** to see the Evidence Graph again
+   in the case-detail view.
+4. `data/demo/` has 8 more synthetic scenarios (BEC, credential theft,
+   malware link, incomplete headers, benign-with-URL) — see
+   `data/demo/README.md` and `reports/demo_validation.md` for real,
+   already-run results on each.
 
 ## 8. Environment variables
 
-See `.env.example` at the repo root:
-
-```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-GEMINI_API_KEY=
-```
-
-`GEMINI_API_KEY` is unused by the current frontend-only build — it's reserved for when `engine.ts`'s explanation step is swapped for a real Gemini call server-side (never call Gemini directly from the browser with this key).
+See `.env.example` at the repo root for the full, documented list.
 
 ## 9. Limitations
 
-This is an SIH hackathon prototype, not a production security product:
-- No real ML model, LLM, or investigation backend is connected yet — `runInvestigation()` is a transparent, local, rule-based simulation, clearly labeled as demo data throughout the UI.
-- Case/alert/analytics data lives in browser `localStorage`, not a shared database — it resets if you clear site data and isn't visible across devices or users.
-- It is **not** a substitute for official cybercrime reporting (e.g. cybercrime.gov.in) or your bank's fraud-reporting channels.
-- Never paste passwords, OTPs, bank credentials, or private keys into the investigation input.
+See `docs/LIMITATIONS.md` and `docs/FINAL_STATUS.md` for the complete,
+honest account — including real detection gaps, what requires credentials
+this environment doesn't have, and what's written but not yet deployed.
+
+This is an SIH hackathon prototype, not a production security product. It
+is **not** a substitute for official cybercrime reporting
+(cybercrime.gov.in) or your organization's security team.
+
+## 10. Web pitch presentation
+
+A full-screen, keynote-style presentation deck for SIH judges lives at
+`/pitch` (e.g. `http://localhost:5173/pitch` with the frontend dev server
+running) — ten slides, one screen each, navigated with the mouse wheel,
+arrow keys, space, or on-screen controls (never a scrolling page). Press
+`f` or `p` for a distraction-free presentation mode. See
+`docs/WEB_PITCH_PLAN.md` for the design/implementation approach and
+`docs/WEB_PITCH_QA.md` for what was actually tested (including a real bug
+found and fixed during QA).
+
+## 11. Documentation index
+
+`docs/CURRENT_STATE.md` · `docs/IMPLEMENTATION_PLAN.md` ·
+`docs/DATA_SOURCES.md` · `docs/AGENT_ARCHITECTURE.md` ·
+`docs/RISK_SCORING.md` · `docs/SECURITY.md` · `docs/LIMITATIONS.md` ·
+`docs/DEPLOYMENT.md` · `docs/FINAL_STATUS.md` · `docs/WEB_PITCH_PLAN.md` ·
+`docs/WEB_PITCH_QA.md`

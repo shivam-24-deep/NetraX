@@ -1,0 +1,107 @@
+{
+  "generated_at": "2026-09-06T17:23:54.462424+00:00",
+  "datasets": {
+    "enron": {
+      "status": "not_profiled",
+      "reason": "download still in progress (50331648 bytes so far). Re-run this script after scripts/data/download_datasets.py --dataset enron completes."
+    },
+    "spamassassin": {
+      "status": "profiled",
+      "releases": {
+        "easy_ham_2002": {
+          "label": "ham",
+          "message_count": 2551
+        },
+        "hard_ham_2002": {
+          "label": "ham",
+          "message_count": 250
+        },
+        "spam_2002": {
+          "label": "spam",
+          "message_count": 501
+        },
+        "easy_ham_2003": {
+          "label": "ham",
+          "message_count": 2500
+        },
+        "easy_ham_2_2003": {
+          "label": "ham",
+          "message_count": 1400
+        },
+        "hard_ham_2003": {
+          "label": "ham",
+          "message_count": 250
+        },
+        "spam_2003": {
+          "label": "spam",
+          "message_count": 500
+        },
+        "spam_2_2003": {
+          "label": "spam",
+          "message_count": 1397
+        },
+        "spam_2_2005": {
+          "label": "spam",
+          "message_count": 1396
+        }
+      },
+      "total_messages": 10745,
+      "empty_files": 0,
+      "messages_failing_basic_header_check": 1,
+      "unique_message_hashes": 9165,
+      "duplicate_message_count": 1580,
+      "messages_duplicated_across_release_dates": 1556,
+      "label_conflicts_same_content_both_spam_and_ham": 0,
+      "class_distribution": {
+        "ham": 6951,
+        "spam": 3794
+      },
+      "class_imbalance_ratio_ham_to_spam": 1.83,
+      "leakage_risk": "1556 messages appear byte-identical across more than one release date. If a naive split assigns e.g. 20021010_easy_ham to train and 20030228_easy_ham to test without deduplication, some of these duplicates would leak between splits. Recommendation: deduplicate by content hash BEFORE splitting, not after.",
+      "label_conflict_note": "No label conflicts found: no message content is labeled both spam and ham."
+    },
+    "uci_phishing": {
+      "status": "profiled",
+      "num_attributes_incl_label": 31,
+      "num_features": 30,
+      "class_attribute": "Result",
+      "num_instances": 11055,
+      "malformed_rows_wrong_column_count": 0,
+      "rows_with_missing_values": 0,
+      "duplicate_rows_exact": 5206,
+      "class_distribution": {
+        "-1": 4898,
+        "1": 6157
+      },
+      "class_imbalance_ratio": 1.26,
+      "leakage_risk": "5206 exact-duplicate feature-vector rows found. If present on both sides of a train/test split, these leak information. Recommendation: deduplicate before splitting."
+    },
+    "urlhaus": {
+      "status": "profiled",
+      "source_file": "urlhaus_csv_recent_20260906.csv",
+      "total_records": 14425,
+      "malformed_records": 0,
+      "duplicate_urls": 0,
+      "threat_type_distribution": {
+        "malware_download": 14425
+      },
+      "url_status_distribution": {
+        "online": 1609,
+        "offline": 12816
+      },
+      "date_range": {
+        "earliest": "2026-08-07 01:13:07",
+        "latest": "2026-09-06 16:42:25"
+      },
+      "class_distribution_note": "This is a single-class threat-intelligence feed \u2014 every record is a confirmed malicious URL. There is no benign/negative class here, so class-imbalance metrics don't apply. It is used for live lookups (Phase 6 ThreatIntelProvider), not as a labeled training set."
+    },
+    "phishtank": {
+      "status": "not_profiled",
+      "reason": "PhishTank requires credentials that are not configured \u2014 see .env.example and docs/DATA_SOURCES.md"
+    },
+    "geolite": {
+      "status": "not_profiled",
+      "reason": "MaxMind GeoLite2 requires credentials that are not configured \u2014 see .env.example and docs/DATA_SOURCES.md"
+    }
+  }
+}

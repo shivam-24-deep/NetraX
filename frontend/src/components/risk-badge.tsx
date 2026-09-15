@@ -2,12 +2,14 @@ import { Badge } from "@/components/ui/badge"
 import type { RiskLevel } from "@/types/fraud"
 
 const riskVariant = {
+  CRITICAL: "risk-critical",
   HIGH: "risk-high",
   MEDIUM: "risk-medium",
   LOW: "risk-low",
 } as const
 
 const riskLabel = {
+  CRITICAL: "Critical Risk",
   HIGH: "High Risk",
   MEDIUM: "Medium Risk",
   LOW: "Low Risk",

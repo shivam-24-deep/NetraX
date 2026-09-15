@@ -1,0 +1,647 @@
+{
+  "sms_fraud_classifier": {
+    "model_name": "sms_fraud_classifier",
+    "dataset": "UCI SMS Spam Collection",
+    "dataset_file": "ml/data/SMSSpamCollection",
+    "raw_rows": 5574,
+    "duplicates_removed": 403,
+    "rows_used": 5171,
+    "train_rows": 4136,
+    "test_rows": 1035,
+    "target": "label (ham=0, spam=1)",
+    "features": "TF-IDF (unigrams+bigrams, max 5000 features)",
+    "algorithm": "LinearSVM",
+    "selection_criterion": "highest mean 5-fold CV F1 on training set, tie-break on recall",
+    "candidates_compared": {
+      "LogisticRegression": {
+        "accuracy": 0.9835596913353077,
+        "precision": 0.9284254109376292,
+        "recall": 0.9425091575091574,
+        "f1": 0.9353763898446449,
+        "roc_auc": 0.9913253914151605
+      },
+      "LinearSVM": {
+        "accuracy": 0.9871852163398348,
+        "precision": 0.9719013770556767,
+        "recall": 0.9252380952380953,
+        "f1": 0.9478992159121,
+        "roc_auc": 0.99178211577684
+      },
+      "MultinomialNB": {
+        "accuracy": 0.9656680627844079,
+        "precision": 1.0,
+        "recall": 0.7278571428571429,
+        "f1": 0.8412408214212247,
+        "roc_auc": 0.981348715498323
+      },
+      "RandomForest": {
+        "accuracy": 0.9729217414670334,
+        "precision": 0.9974683544303797,
+        "recall": 0.7873260073260073,
+        "f1": 0.8796945673063336,
+        "roc_auc": 0.9896143373732713
+      }
+    },
+    "default_threshold": 0.5,
+    "selected_threshold": 0.43,
+    "metrics_at_default_threshold": {
+      "accuracy": 0.9845410628019323,
+      "precision": 0.9752066115702479,
+      "recall": 0.9007633587786259,
+      "f1": 0.9365079365079365,
+      "roc_auc": 0.9899513612105655,
+      "pr_auc": 0.9685746009927032,
+      "confusion_matrix": [
+        [
+          901,
+          3
+        ],
+        [
+          13,
+          118
+        ]
+      ]
+    },
+    "metrics_at_selected_threshold": {
+      "accuracy": 0.9845410628019323,
+      "precision": 0.967479674796748,
+      "recall": 0.9083969465648855,
+      "f1": 0.937007874015748,
+      "roc_auc": 0.9899513612105655,
+      "pr_auc": 0.9685746009927032,
+      "confusion_matrix": [
+        [
+          900,
+          4
+        ],
+        [
+          12,
+          119
+        ]
+      ]
+    },
+    "feature_importance": [
+      {
+        "feature": "txt",
+        "importance": 2.2584107051473845
+      },
+      {
+        "feature": "call",
+        "importance": 2.004237485586063
+      },
+      {
+        "feature": "text",
+        "importance": 1.87673825899923
+      },
+      {
+        "feature": "www",
+        "importance": 1.4789693943151798
+      },
+      {
+        "feature": "150p",
+        "importance": 1.3963247148962716
+      },
+      {
+        "feature": "com",
+        "importance": 1.3369166117811802
+      },
+      {
+        "feature": "arsenal",
+        "importance": 1.3324118181124227
+      },
+      {
+        "feature": "chat",
+        "importance": 1.3319004947176905
+      },
+      {
+        "feature": "free",
+        "importance": 1.331083887394499
+      },
+      {
+        "feature": "uk",
+        "importance": 1.330528321516495
+      }
+    ],
+    "artifact_path": "ml\\models\\sms_pipeline.joblib",
+    "training_date": "2026-09-04T09:16:15.139097+00:00",
+    "random_seed": 42,
+    "library_versions": {
+      "python": "3.11.3",
+      "numpy": "1.26.4",
+      "pandas": "2.2.0",
+      "scipy": "1.17.1",
+      "scikit_learn": "1.4.2",
+      "joblib": "1.5.3"
+    }
+  },
+  "url_phishing_classifier": {
+    "model_name": "url_phishing_classifier",
+    "dataset": "UCI Phishing Websites Data Set",
+    "dataset_file": "ml/data/Training Dataset.arff",
+    "raw_rows": 11055,
+    "duplicates_removed": 5206,
+    "rows_used": 5849,
+    "train_rows": 4679,
+    "test_rows": 1170,
+    "target": "Result (legitimate=0, phishing=1)",
+    "features": [
+      "having_IP_Address",
+      "URL_Length",
+      "Shortining_Service",
+      "having_At_Symbol",
+      "double_slash_redirecting",
+      "Prefix_Suffix",
+      "having_Sub_Domain",
+      "SSLfinal_State",
+      "Domain_registeration_length",
+      "Favicon",
+      "port",
+      "HTTPS_token",
+      "Request_URL",
+      "URL_of_Anchor",
+      "Links_in_tags",
+      "SFH",
+      "Submitting_to_email",
+      "Abnormal_URL",
+      "Redirect",
+      "on_mouseover",
+      "RightClick",
+      "popUpWidnow",
+      "Iframe",
+      "age_of_domain",
+      "DNSRecord",
+      "web_traffic",
+      "Page_Rank",
+      "Google_Index",
+      "Links_pointing_to_page",
+      "Statistical_report"
+    ],
+    "imputation_defaults": {
+      "having_IP_Address": 1.0,
+      "URL_Length": -1.0,
+      "Shortining_Service": 1.0,
+      "having_At_Symbol": 1.0,
+      "double_slash_redirecting": 1.0,
+      "Prefix_Suffix": -1.0,
+      "having_Sub_Domain": 1.0,
+      "SSLfinal_State": 1.0,
+      "Domain_registeration_length": -1.0,
+      "Favicon": 1.0,
+      "port": 1.0,
+      "HTTPS_token": 1.0,
+      "Request_URL": 1.0,
+      "URL_of_Anchor": 0.0,
+      "Links_in_tags": 0.0,
+      "SFH": -1.0,
+      "Submitting_to_email": 1.0,
+      "Abnormal_URL": 1.0,
+      "Redirect": 0.0,
+      "on_mouseover": 1.0,
+      "RightClick": 1.0,
+      "popUpWidnow": 1.0,
+      "Iframe": 1.0,
+      "age_of_domain": 1.0,
+      "DNSRecord": 1.0,
+      "web_traffic": 1.0,
+      "Page_Rank": -1.0,
+      "Google_Index": 1.0,
+      "Links_pointing_to_page": 0.0,
+      "Statistical_report": 1.0
+    },
+    "algorithm": "HistGradientBoosting",
+    "selection_criterion": "highest mean 5-fold CV F1 on training set, tie-break on ROC-AUC",
+    "candidates_compared": {
+      "LogisticRegression": {
+        "accuracy": 0.9207091274738334,
+        "precision": 0.9314358453272009,
+        "recall": 0.9138716356107661,
+        "f1": 0.9224597115617629,
+        "roc_auc": 0.9752917475436199
+      },
+      "RandomForest": {
+        "accuracy": 0.949132730015083,
+        "precision": 0.9572900872326905,
+        "recall": 0.9436853002070393,
+        "f1": 0.9503725064616036,
+        "roc_auc": 0.9882625270447637
+      },
+      "HistGradientBoosting": {
+        "accuracy": 0.9506279994515289,
+        "precision": 0.9524782429035307,
+        "recall": 0.9519668737060041,
+        "f1": 0.952159488171605,
+        "roc_auc": 0.9919976731786037
+      },
+      "XGBoost": {
+        "accuracy": 0.9474233283056812,
+        "precision": 0.9502817002217588,
+        "recall": 0.9478260869565217,
+        "f1": 0.9489807017008923,
+        "roc_auc": 0.9915102698411484
+      }
+    },
+    "default_threshold": 0.5,
+    "selected_threshold": 0.45,
+    "metrics_at_default_threshold": {
+      "accuracy": 0.9572649572649573,
+      "precision": 0.9694915254237289,
+      "recall": 0.9470198675496688,
+      "f1": 0.9581239530988275,
+      "roc_auc": 0.9927719795006201,
+      "pr_auc": 0.9935630060213464,
+      "confusion_matrix": [
+        [
+          548,
+          18
+        ],
+        [
+          32,
+          572
+        ]
+      ]
+    },
+    "metrics_at_selected_threshold": {
+      "accuracy": 0.9529914529914529,
+      "precision": 0.9597989949748744,
+      "recall": 0.9486754966887417,
+      "f1": 0.9542048293089093,
+      "roc_auc": 0.9927719795006201,
+      "pr_auc": 0.9935630060213464,
+      "confusion_matrix": [
+        [
+          542,
+          24
+        ],
+        [
+          31,
+          573
+        ]
+      ]
+    },
+    "feature_importance": [
+      {
+        "feature": "URL_of_Anchor",
+        "importance": 0.13957264957264962
+      },
+      {
+        "feature": "SSLfinal_State",
+        "importance": 0.11316239316239321
+      },
+      {
+        "feature": "Prefix_Suffix",
+        "importance": 0.025384615384615405
+      },
+      {
+        "feature": "web_traffic",
+        "importance": 0.02162393162393166
+      },
+      {
+        "feature": "Links_in_tags",
+        "importance": 0.015128205128205185
+      },
+      {
+        "feature": "having_IP_Address",
+        "importance": 0.01435897435897442
+      },
+      {
+        "feature": "SFH",
+        "importance": 0.013418803418803481
+      },
+      {
+        "feature": "Links_pointing_to_page",
+        "importance": 0.013076923076923142
+      },
+      {
+        "feature": "having_Sub_Domain",
+        "importance": 0.01290598290598297
+      },
+      {
+        "feature": "URL_Length",
+        "importance": 0.007350427350427425
+      }
+    ],
+    "artifact_path": "ml\\models\\url_pipeline.joblib",
+    "notes": "ml/data/.old.arff (2,456-row earlier dataset version) exists but was not used \u2014 see DATASET_REPORT.md.",
+    "training_date": "2026-09-04T09:16:31.188464+00:00",
+    "random_seed": 42,
+    "library_versions": {
+      "python": "3.11.3",
+      "numpy": "1.26.4",
+      "pandas": "2.2.0",
+      "scipy": "1.17.1",
+      "scikit_learn": "1.4.2",
+      "joblib": "1.5.3"
+    }
+  },
+  "transaction_fraud_detector": {
+    "model_name": "transaction_fraud_detector",
+    "dataset": "Credit Card Fraud Detection (Kaggle / ULB)",
+    "dataset_file": "ml/data/creditcard.csv",
+    "raw_rows": 284807,
+    "duplicates_removed": 1081,
+    "rows_used": 283726,
+    "train_rows": 226980,
+    "test_rows": 56746,
+    "target": "Class (legitimate=0, fraud=1)",
+    "features": [
+      "Time",
+      "V1",
+      "V2",
+      "V3",
+      "V4",
+      "V5",
+      "V6",
+      "V7",
+      "V8",
+      "V9",
+      "V10",
+      "V11",
+      "V12",
+      "V13",
+      "V14",
+      "V15",
+      "V16",
+      "V17",
+      "V18",
+      "V19",
+      "V20",
+      "V21",
+      "V22",
+      "V23",
+      "V24",
+      "V25",
+      "V26",
+      "V27",
+      "V28",
+      "Amount"
+    ],
+    "class_imbalance": {
+      "fraud_rate_pct": 0.1667101358352777,
+      "fraud_count": 473,
+      "legitimate_count": 283253
+    },
+    "imbalance_handling": "class_weight='balanced' (LogisticRegression, RandomForest); PR-AUC used for model selection instead of accuracy",
+    "algorithm": "RandomForest",
+    "selection_criterion": "highest mean 5-fold CV PR-AUC (average precision) on training set, tie-break on F1 \u2014 NOT accuracy, which is meaningless at 0.17% positive rate",
+    "candidates_compared": {
+      "LogisticRegression": {
+        "accuracy": 0.9758172526213762,
+        "precision": 0.06053460982617239,
+        "recall": 0.9178947368421053,
+        "f1": 0.11348072352255867,
+        "roc_auc": 0.9814469276050699,
+        "pr_auc": 0.753754888426959
+      },
+      "RandomForest": {
+        "accuracy": 0.9995021587805093,
+        "precision": 0.9390169137844913,
+        "recall": 0.7512982456140351,
+        "f1": 0.8321713291739326,
+        "roc_auc": 0.9574790248645343,
+        "pr_auc": 0.8376419607816615
+      },
+      "HistGradientBoosting": {
+        "accuracy": 0.9982157018239493,
+        "precision": 0.4616354386938345,
+        "recall": 0.5342456140350877,
+        "f1": 0.4927685303741642,
+        "roc_auc": 0.6402734212260144,
+        "pr_auc": 0.4766281344943163
+      }
+    },
+    "isolation_forest_anomaly_baseline": {
+      "roc_auc": 0.9347710682860617,
+      "pr_auc": 0.11141881437632939,
+      "precision_at_default_contamination": 0.1978021978021978,
+      "recall_at_default_contamination": 0.18947368421052632,
+      "contamination_used": 0.0016653449643140364
+    },
+    "default_threshold": 0.5,
+    "selected_threshold": 0.26,
+    "metrics_at_default_threshold": {
+      "accuracy": 0.9994889507630493,
+      "precision": 0.9714285714285714,
+      "recall": 0.7157894736842105,
+      "f1": 0.8242424242424242,
+      "roc_auc": 0.9491463429362978,
+      "pr_auc": 0.8093968801876994,
+      "confusion_matrix": [
+        [
+          56649,
+          2
+        ],
+        [
+          27,
+          68
+        ]
+      ]
+    },
+    "metrics_at_selected_threshold": {
+      "accuracy": 0.9995065731505305,
+      "precision": 0.9466666666666667,
+      "recall": 0.7473684210526316,
+      "f1": 0.8352941176470589,
+      "roc_auc": 0.9491463429362978,
+      "pr_auc": 0.8093968801876994,
+      "confusion_matrix": [
+        [
+          56647,
+          4
+        ],
+        [
+          24,
+          71
+        ]
+      ]
+    },
+    "feature_importance": [
+      {
+        "feature": "V14",
+        "importance": 0.1633904621690846
+      },
+      {
+        "feature": "V10",
+        "importance": 0.12864439235202094
+      },
+      {
+        "feature": "V12",
+        "importance": 0.10994680051675396
+      },
+      {
+        "feature": "V4",
+        "importance": 0.10635326871118042
+      },
+      {
+        "feature": "V17",
+        "importance": 0.08731100888613443
+      },
+      {
+        "feature": "V11",
+        "importance": 0.06123002216015175
+      },
+      {
+        "feature": "V16",
+        "importance": 0.057793700133171394
+      },
+      {
+        "feature": "V3",
+        "importance": 0.05098504228732601
+      },
+      {
+        "feature": "V2",
+        "importance": 0.026490954948039127
+      },
+      {
+        "feature": "V7",
+        "importance": 0.025483241500823116
+      }
+    ],
+    "artifact_path": "ml\\models\\transaction_pipeline.joblib",
+    "training_date": "2026-09-04T09:31:22.905802+00:00",
+    "random_seed": 42,
+    "library_versions": {
+      "python": "3.11.3",
+      "numpy": "1.26.4",
+      "pandas": "2.2.0",
+      "scipy": "1.17.1",
+      "scikit_learn": "1.4.2",
+      "joblib": "1.5.3"
+    }
+  },
+  "email_content_classifier": {
+    "model_name": "email_content_classifier",
+    "dataset": "Apache SpamAssassin Public Corpus",
+    "dataset_file": "data/raw/spamassassin/*.tar.bz2",
+    "raw_rows": 10705,
+    "duplicates_removed": 4738,
+    "rows_used": 5967,
+    "train_rows": 4773,
+    "test_rows": 1194,
+    "target": "label (ham=0, spam=1)",
+    "features": "TF-IDF (unigrams+bigrams, max 8000 features) over extracted email body text",
+    "algorithm": "LinearSVM",
+    "selection_criterion": "highest mean 5-fold CV F1 on training set, tie-break on recall",
+    "candidates_compared": {
+      "LogisticRegression": {
+        "accuracy": 0.977582403108433,
+        "precision": 0.9568748326813576,
+        "recall": 0.9632451916307623,
+        "f1": 0.9600037094649119,
+        "roc_auc": 0.9969246918576818
+      },
+      "LinearSVM": {
+        "accuracy": 0.9826105568178075,
+        "precision": 0.9707021646499785,
+        "recall": 0.9669905099828222,
+        "f1": 0.9688059794533259,
+        "roc_auc": 0.9980974982858243
+      },
+      "MultinomialNB": {
+        "accuracy": 0.9731820826061665,
+        "precision": 0.9696685165558971,
+        "recall": 0.9332319562952325,
+        "f1": 0.951036729926899,
+        "roc_auc": 0.9948938111544867
+      },
+      "RandomForest": {
+        "accuracy": 0.9752754453554612,
+        "precision": 0.9647930737990473,
+        "recall": 0.9459632226634002,
+        "f1": 0.9552331373500118,
+        "roc_auc": 0.9962031274456062
+      }
+    },
+    "default_threshold": 0.5,
+    "selected_threshold": 0.33,
+    "metrics_at_default_threshold": {
+      "accuracy": 0.9790619765494137,
+      "precision": 0.9813084112149533,
+      "recall": 0.9431137724550899,
+      "f1": 0.9618320610687023,
+      "roc_auc": 0.9980556329202062,
+      "pr_auc": 0.9953322622739285,
+      "confusion_matrix": [
+        [
+          854,
+          6
+        ],
+        [
+          19,
+          315
+        ]
+      ]
+    },
+    "metrics_at_selected_threshold": {
+      "accuracy": 0.9782244556113903,
+      "precision": 0.9610778443113772,
+      "recall": 0.9610778443113772,
+      "f1": 0.9610778443113772,
+      "roc_auc": 0.9980556329202062,
+      "pr_auc": 0.9953322622739285,
+      "confusion_matrix": [
+        [
+          847,
+          13
+        ],
+        [
+          13,
+          321
+        ]
+      ]
+    },
+    "feature_importance": [
+      {
+        "feature": "remove",
+        "importance": 1.5357026014218902
+      },
+      {
+        "feature": "spamassassin talk",
+        "importance": 1.5272936746405508
+      },
+      {
+        "feature": "2002",
+        "importance": 1.4602239580811207
+      },
+      {
+        "feature": "free",
+        "importance": 1.3743407514879
+      },
+      {
+        "feature": "you",
+        "importance": 1.360928630864076
+      },
+      {
+        "feature": "the",
+        "importance": 1.359469875935797
+      },
+      {
+        "feature": "spamassassin sightings",
+        "importance": 1.309839669454956
+      },
+      {
+        "feature": "wrote",
+        "importance": 1.3046875670237537
+      },
+      {
+        "feature": "sightings",
+        "importance": 1.2926623046991754
+      },
+      {
+        "feature": "your",
+        "importance": 1.2745116330120012
+      }
+    ],
+    "artifact_path": "ml\\models\\email_pipeline.joblib",
+    "notes": "Trained on SpamAssassin's explicit spam/ham labels only. Enron is deliberately excluded per Rule 6 (not malicious/benign ground truth). This model scores body content/language and is one input to the risk engine alongside (not a replacement for) the deterministic header-forensics and URL-analysis findings \u2014 see Rule 7. KNOWN LIMITATION: the 'ham' class is mostly tech-mailing-list traffic (e.g. Linux user group threads) from 2002-2005, not generic modern corporate correspondence \u2014 a polished formal business email can score closer to the decision boundary than casual/direct phrasing does, since that register is underrepresented in training data.",
+    "training_date": "2026-09-06T18:13:35.908738+00:00",
+    "random_seed": 42,
+    "library_versions": {
+      "python": "3.11.3",
+      "numpy": "1.26.4",
+      "pandas": "2.2.0",
+      "scipy": "1.17.1",
+      "scikit_learn": "1.4.2",
+      "joblib": "1.5.3"
+    }
+  }
+}

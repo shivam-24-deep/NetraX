@@ -232,7 +232,7 @@ export function analyzeTransaction(fields: TransactionFields): BehavioralAnalysi
 }
 
 export function fuseRisk(allEvidence: Evidence[]): { score: number; level: "LOW" | "MEDIUM" | "HIGH"; confidence: "LOW" | "MEDIUM" | "HIGH" } {
-  const weights: Record<Evidence["severity"], number> = { HIGH: 3, MEDIUM: 1.6, LOW: 0.2 }
+  const weights: Record<Evidence["severity"], number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 1.6, LOW: 0.2 }
   const raw = allEvidence.reduce((sum, e) => sum + weights[e.severity], 0)
   // Capped below 100 — a risk *probability*, never displayed as absolute certainty.
   const score = Math.round(Math.min(97, (raw / 13) * 100))

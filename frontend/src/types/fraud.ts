@@ -1,4 +1,4 @@
-export type RiskLevel = "LOW" | "MEDIUM" | "HIGH"
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
 
 export type InputType = "SMS" | "EMAIL" | "URL" | "PHONE" | "TRANSACTION" | "GENERAL"
 
@@ -29,6 +29,13 @@ export type ToolId =
   | "scam-pattern-search"
   | "behavioral-analyzer"
   | "risk-engine"
+  // Real email-investigation tools (SIH26106) — see server/local-api.ts / supabase/functions/_shared/agent
+  | "email_parser"
+  | "header_forensics"
+  | "content_analysis"
+  | "url_analysis"
+  | "threat_intelligence"
+  | "geolocation"
 
 export type ToolExecutionStatus = "pending" | "running" | "completed"
 
@@ -71,6 +78,24 @@ export interface TransactionFields {
   device: string
 }
 
+export interface EvidenceGraphNode {
+  id: string
+  type: string
+  label: string
+  data: Record<string, unknown>
+}
+
+export interface EvidenceGraphEdge {
+  from: string
+  to: string
+  relationship: string
+}
+
+export interface EvidenceGraph {
+  nodes: EvidenceGraphNode[]
+  edges: EvidenceGraphEdge[]
+}
+
 export interface FraudCase {
   id: string
   inputType: InputType
@@ -83,6 +108,8 @@ export interface FraudCase {
   status: CaseStatus
   toolsUsed: ToolExecution[]
   evidence: Evidence[]
+  /** Only populated for real email investigations (Phase 13) — undefined for archived mock analyzers. */
+  evidenceGraph?: EvidenceGraph
   explanation: string
   recommendation: string[]
   timeline: TimelineEvent[]

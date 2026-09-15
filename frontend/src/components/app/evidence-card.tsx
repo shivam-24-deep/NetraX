@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import type { Evidence } from "@/types/fraud"
 
 const SEVERITY_ICON = {
+  CRITICAL: ShieldAlert,
   HIGH: ShieldAlert,
   MEDIUM: AlertTriangle,
   LOW: Info,
