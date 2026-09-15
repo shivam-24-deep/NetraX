@@ -1,4 +1,4 @@
-import { Loader2, Shield } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { Link, Navigate, useLocation } from "react-router-dom"
 
@@ -34,8 +34,12 @@ export default function LoginPage() {
     <div className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center py-10 md:min-h-[calc(100svh-2rem)]">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Shield className="size-5" />
+          <div className="mb-2 flex size-12 items-center justify-center">
+            <img
+              src="/assets/netrax-icon.png?v=2"
+              alt="NetraX"
+              className="size-12 object-contain drop-shadow-[0_0_14px_rgba(0,180,255,0.5)]"
+            />
           </div>
           <CardTitle className="text-xl">Sign in to NetraX</CardTitle>
           <CardDescription>AI-powered fraud investigation</CardDescription>

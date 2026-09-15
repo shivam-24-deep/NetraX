@@ -4,7 +4,7 @@ import {
   Bell,
   Bookmark,
   Bot,
-  ChevronsLeft,
+  ChevronLeft,
   Eye,
   Gauge,
   LayoutDashboard,
@@ -12,7 +12,6 @@ import {
   Search,
   Settings,
   ShieldAlert,
-  ShieldCheck,
   User,
 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
@@ -21,7 +20,6 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { CommandPalette } from "@/components/app/command-palette"
 import { StatusIndicator } from "@/components/app/status-indicator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,17 +89,37 @@ function useActive() {
 
 function Brand({ collapsed, compact }: { collapsed?: boolean; compact?: boolean }) {
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--accent-grad-from)] to-[var(--accent-grad-to)] text-primary-foreground shadow-sm">
-        <ShieldCheck className="size-4.5" />
+    <Link
+      to="/dashboard"
+      className={cn(
+        "group flex min-w-0 items-center transition-all duration-200 outline-none",
+        collapsed ? "justify-center" : "gap-3",
+      )}
+    >
+      <div className="relative flex shrink-0 items-center justify-center">
+        <img
+          src="/assets/netrax-icon.png?v=2"
+          alt="NetraX"
+          className={cn(
+            "object-contain transition-all duration-200 drop-shadow-[0_0_10px_rgba(0,180,255,0.45)] group-hover:scale-105 group-hover:drop-shadow-[0_0_14px_rgba(0,180,255,0.7)]",
+            collapsed ? "size-10" : "size-8.5",
+          )}
+        />
       </div>
       {!collapsed && (
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-sm font-semibold">NetraX</p>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+              NetraX
+            </span>
+            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-primary uppercase">
+              AI
+            </span>
+          </div>
           {!compact && <p className="truncate text-[11px] text-muted-foreground">Fraud Investigation</p>}
         </div>
       )}
-    </div>
+    </Link>
   )
 }
 
@@ -154,8 +172,24 @@ function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
     <motion.aside
       animate={{ width: collapsed ? 76 : 248 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="sticky top-0 hidden h-svh shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
+      className="sticky top-0 relative hidden h-svh shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
     >
+      {/* Small, systematic collapse sign in the middle of the border rail */}
+      <button
+        type="button"
+        onClick={onToggle}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="group absolute -right-3 top-1/2 z-40 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-sidebar-border bg-sidebar shadow-md transition-all duration-200 hover:border-primary hover:bg-sidebar-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <ChevronLeft
+          className={cn(
+            "size-3.5 text-sidebar-foreground/70 transition-transform duration-200 group-hover:text-primary",
+            collapsed && "rotate-180",
+          )}
+        />
+      </button>
+
       <div className={cn("flex items-center px-4 py-5", collapsed && "justify-center px-0")}>
         <Brand collapsed={collapsed} />
       </div>
@@ -178,15 +212,6 @@ function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </div>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggle}
-          className={cn("mt-2 w-full justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground", !collapsed && "justify-start")}
-        >
-          <ChevronsLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />
-          {!collapsed && "Collapse"}
-        </Button>
       </div>
     </motion.aside>
   )
