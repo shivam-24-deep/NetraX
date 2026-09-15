@@ -91,8 +91,8 @@ export default function CaseDetailPage() {
               <CardTitle className="text-base">Evidence</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {fraudCase.evidence.map((e) => (
-                <EvidenceCard key={e.label} evidence={e} />
+              {fraudCase.evidence.map((e, i) => (
+                <EvidenceCard key={`${e.label}-${i}`} evidence={e} />
               ))}
             </CardContent>
           </Card>
@@ -239,7 +239,7 @@ export default function CaseDetailPage() {
           </SheetHeader>
           <div className="flex flex-col gap-2 px-4">
             {selectedTool?.evidence.length ? (
-              selectedTool.evidence.map((e) => <EvidenceCard key={e.label} evidence={e} />)
+              selectedTool.evidence.map((e, i) => <EvidenceCard key={`${e.label}-${i}`} evidence={e} />)
             ) : (
               <p className="text-sm text-muted-foreground">This tool contributed to scoring but did not report standalone evidence items.</p>
             )}
