@@ -1,0 +1,17 @@
+# Keep secrets, datasets, virtualenvs and build output out of Docker images.
+.git
+.env
+.env.*
+!.env.example
+data
+deploy
+docs
+ppt
+reports
+frontend
+ml/.venv
+ml/data
+server/.gmail-tokens.json
+server/.gmail-seen.json
+**/node_modules
+**/__pycache__

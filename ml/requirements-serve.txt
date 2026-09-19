@@ -1,0 +1,12 @@
+# Runtime-only dependencies for the inference API (api/server.py), pinned to
+# the exact versions the models were trained and verified with. Training-only
+# packages (matplotlib, python-docx, pytest) are deliberately left out.
+numpy==1.26.4
+pandas==2.2.0
+scipy==1.17.1
+scikit-learn==1.4.2
+joblib==1.5.3
+xgboost==2.0.3
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.5

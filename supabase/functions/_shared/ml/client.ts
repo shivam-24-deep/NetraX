@@ -9,6 +9,10 @@ import type { Finding } from "../email/evidence.ts";
 import { getEnv } from "../env.ts";
 
 const ML_API_URL = getEnv("ML_API_URL") ?? "http://localhost:8000";
+// A hosted ML service may be asleep (free tiers); allow it longer than the
+// 2.5s a local process needs, and authenticate when a key is configured.
+const ML_TIMEOUT_MS = Number(getEnv("ML_TIMEOUT_MS")) || 2500;
+const ML_API_KEY = getEnv("ML_API_KEY");
 
 export interface MlAnalyzeResult {
   fraud_probability: number;
@@ -27,10 +31,10 @@ export async function callAnalyze(
 ): Promise<MlAnalyzeResult | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), ML_TIMEOUT_MS);
     const res = await fetchImpl(`${ML_API_URL}/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(ML_API_KEY ? { "X-API-Key": ML_API_KEY } : {}) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });

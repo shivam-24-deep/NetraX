@@ -1,0 +1,60 @@
+# Render Blueprint: the NetraX ML service and the investigation API, both on
+# the free plan. Dashboard -> New -> Blueprint -> pick this repo.
+# Values marked "sync: false" are typed into the Render dashboard, never committed.
+services:
+  # --- ML inference API (Python / FastAPI, ~220 MB RAM with the models loaded) ---
+  - type: web
+    name: netrax-ml
+    runtime: docker
+    dockerfilePath: ./ml/Dockerfile
+    dockerContext: ./ml
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Generated once by Render; the API service below reads the same value.
+      - key: ML_API_KEY
+        generateValue: true
+
+  # --- Investigation API (Node) ---
+  - type: web
+    name: netrax-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Every route except /health and /status requires a valid Supabase login.
+      - key: REQUIRE_AUTH
+        value: "true"
+      # Public project values (safe to commit; the anon key is designed to be public).
+      - key: SUPABASE_URL
+        value: https://imtmbuvwzwmcezavwhxl.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_C5-aKZ3ofKj97oW4FYLbGw_8sXyCp6A
+      # Your Vercel site, e.g. https://netrax.vercel.app (comma-separate several).
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Public URL of the ML service above, e.g. https://netrax-ml.onrender.com
+      - key: ML_API_URL
+        sync: false
+      - key: ML_API_KEY
+        fromService:
+          type: web
+          name: netrax-ml
+          envVarKey: ML_API_KEY
+      # A sleeping free-tier ML service needs longer than the local 2.5s default.
+      - key: ML_TIMEOUT_MS
+        value: "8000"
+      - key: RATE_LIMIT_PER_MIN
+        value: "60"
+      # Optional threat-intel / geolocation providers (features report
+      # "not configured" honestly when these are left empty).
+      - key: PHISHTANK_APP_KEY
+        sync: false
+      - key: URLHAUS_AUTH_KEY
+        sync: false
+      - key: MAXMIND_ACCOUNT_ID
+        sync: false
+      - key: MAXMIND_LICENSE_KEY
+        sync: false

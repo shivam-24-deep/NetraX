@@ -38,6 +38,7 @@ import {
   isGmailConnected,
   isGoogleConfigured,
 } from "./gmail-client.ts";
+import { applyCors, clientIp, createRateLimiter, createSupabaseVerifier, parseAllowedOrigins } from "./security.ts";
 
 // Load repo-root .env (GOOGLE_CLIENT_ID, PHISHTANK_APP_KEY, etc.) if present —
 // silently continues without it, same "missing key = feature reports
@@ -48,29 +49,72 @@ try {
   // no root .env — every credential-gated feature below reports "not configured"
 }
 
-const PORT = Number(process.env.LOCAL_API_PORT ?? 8787);
+const PORT = Number(process.env.PORT ?? process.env.LOCAL_API_PORT ?? 8787);
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
+
+// Deployed mode. REQUIRE_AUTH=true makes every route except /health demand a
+// valid Supabase login (Authorization: Bearer <access token>), restricts CORS to
+// ALLOWED_ORIGINS, rate-limits per user, and turns the Gmail routes off (the
+// Gmail connection is a single mailbox on this server — it must never be
+// shared between users). Left unset, this is the open local-dev server.
+const REQUIRE_AUTH = process.env.REQUIRE_AUTH === "true";
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+const rateLimit = createRateLimiter(Number(process.env.RATE_LIMIT_PER_MIN ?? 60));
+const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY;
+if (REQUIRE_AUTH && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+  console.error("REQUIRE_AUTH=true needs SUPABASE_URL and SUPABASE_ANON_KEY — refusing to start unprotected.");
+  process.exit(1);
+}
+if (REQUIRE_AUTH && !allowedOrigins) {
+  console.warn("WARNING: REQUIRE_AUTH=true but ALLOWED_ORIGINS is not set — any website may call this API from a signed-in browser.");
+}
+const verifyUser = REQUIRE_AUTH ? createSupabaseVerifier({ url: SUPABASE_URL!, anonKey: SUPABASE_ANON_KEY! }) : null;
 
 // Best-effort LAN IPv4 discovery — used only so the "Send to NetraX" mobile QR
 // code can point a phone at this machine's real network address instead of
 // "localhost" (which resolves to the phone itself, not this machine). Never
 // used for anything security-sensitive; if nothing suitable is found, callers
 // fall back to whatever origin the page was already loaded from.
+const VIRTUAL_ADAPTER = /vethernet|wsl|hyper-v|virtualbox|vmware|vmnet|docker|bluetooth|loopback|tailscale|zerotier|vpn/i;
+
 function findLanIp(): string | null {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) return iface.address;
+  const candidates: { address: string; score: number }[] = [];
+  for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
+    for (const iface of addrs ?? []) {
+      if (iface.family !== "IPv4" || iface.internal || iface.address.startsWith("169.254.")) continue;
+      let score = 0;
+      if (VIRTUAL_ADAPTER.test(name)) score -= 10;
+      if (/wi-?fi|wlan|wireless/i.test(name)) score += 3;
+      else if (/^eth|ethernet/i.test(name)) score += 2;
+      if (iface.address.startsWith("192.168.") || iface.address.startsWith("10.")) score += 1;
+      candidates.push({ address: iface.address, score });
     }
   }
-  return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.address ?? null;
 }
 
-function withCors(res: http.ServerResponse): void {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+// The browser cannot reach the ML service directly once deployed (different host,
+// API key), so this server reports its health. Each /status call also nudges a
+// sleeping free-tier ML service awake, so it is warm by the time someone submits
+// an investigation. /health stays dependency-free for the platform's own checks.
+const ML_HEALTH_URL = `${(process.env.ML_API_URL ?? "http://localhost:8000").replace(/\/+$/, "")}/health`;
+let mlState: "checking" | "up" | "down" = "checking";
+let mlCheckedAt = 0;
+let mlChecking = false;
+function refreshMlState(): void {
+  if (mlChecking || Date.now() - mlCheckedAt < 20_000) return;
+  mlChecking = true;
+  if (mlState === "down") mlState = "checking";
+  fetch(ML_HEALTH_URL, { signal: AbortSignal.timeout(90_000) })
+    .then((r) => void (mlState = r.ok ? "up" : "down"))
+    .catch(() => void (mlState = "down"))
+    .finally(() => {
+      mlChecking = false;
+      mlCheckedAt = Date.now();
+    });
 }
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
@@ -216,7 +260,7 @@ const getRoutes: Record<string, GetHandler> = {
 };
 
 const server = http.createServer(async (req, res) => {
-  withCors(res);
+  applyCors(req, res, allowedOrigins);
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
@@ -226,12 +270,40 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 200, { status: "ok" });
     return;
   }
-  if (req.method === "GET" && req.url === "/network-info") {
-    sendJson(res, 200, { lanIp: findLanIp() });
+  if (req.method === "GET" && req.url === "/status") {
+    refreshMlState();
+    sendJson(res, 200, { status: "ok", ml: mlState });
     return;
   }
+  if (req.method === "GET" && req.url === "/network-info") {
+    sendJson(res, 200, { lanIp: REQUIRE_AUTH ? null : findLanIp() });
+    return;
+  }
+
+  const path = (req.url ?? "").split("?")[0];
+  if (REQUIRE_AUTH && (path.startsWith("/auth/google") || path.startsWith("/gmail"))) {
+    if (path === "/auth/google/status") {
+      sendJson(res, 200, { configured: false, connected: false, disabled: true });
+    } else {
+      sendJson(res, 404, { error: "Gmail integration is only available on a local install." });
+    }
+    return;
+  }
+
+  if (verifyUser) {
+    const user = await verifyUser(req.headers.authorization);
+    if (!user) {
+      sendJson(res, 401, { error: "Sign in required." });
+      return;
+    }
+    const limit = rateLimit(user.id);
+    if (!limit.allowed) {
+      res.setHeader("Retry-After", String(limit.retryAfterSec));
+      sendJson(res, 429, { error: "Too many requests. Please wait a moment and try again." });
+      return;
+    }
+  }
   if (req.method === "GET" && req.url) {
-    const path = req.url.split("?")[0];
     const getHandler = getRoutes[path];
     if (getHandler) {
       try {
@@ -272,7 +344,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Local dev API server listening on http://localhost:${PORT}`);
+  console.log(`API server listening on port ${PORT} (${REQUIRE_AUTH ? "login required" : "open local-dev mode"})`);
   console.log(
     "Routes: /health, /network-info, /parse-email, /investigate-email, /investigate-url, /analyze-url, " +
       "/check-threat-intel, /geolocate-ip, /auth/google/{status,start,callback,disconnect}, /gmail/check-new",

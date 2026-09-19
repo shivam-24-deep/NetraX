@@ -16,11 +16,13 @@ rule-based-only evidence — see frontend/src/lib/mock/ml-client.ts.
 
 from __future__ import annotations
 
+import hmac
+import os
 import sys
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -30,15 +32,32 @@ from src import inference, model_registry  # noqa: E402
 
 app = FastAPI(title="NetraX ML Inference API", version="1.0")
 
-# Local-demo CORS: allow the Vite dev server (and its ngrok tunnel host
-# pattern) to call this API directly from the browser.
+# CORS: by default the Vite dev server (and its ngrok tunnel host pattern).
+# Deployed, set CORS_ORIGINS to a comma-separated list — though in production
+# only the Node API calls this service, server-to-server, so browsers normally
+# never need CORS access here.
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_origin_regex=r"https://.*\.ngrok-free\.app",
+    allow_origins=[o.strip() for o in _cors_env.split(",") if o.strip()]
+    or ["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origin_regex=None if _cors_env else r"https://.*\.ngrok-free\.app",
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    """If ML_API_KEY is set (deployed), /analyze and /models need a matching X-API-Key.
+
+    Unset = open, as for local development. /health is always public so the
+    host's health check works.
+    """
+    expected = os.environ.get("ML_API_KEY", "")
+    if not expected:
+        return
+    if not x_api_key or not hmac.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 class AnalyzeRequest(BaseModel):
@@ -71,13 +90,13 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/models")
+@app.get("/models", dependencies=[Depends(require_api_key)])
 def models() -> dict:
     """Real, measured model metadata — used by the Model Performance page."""
     return model_registry.load_metadata()
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalyzeResponse, dependencies=[Depends(require_api_key)])
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     try:
         if req.type == "sms":
