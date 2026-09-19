@@ -15,7 +15,7 @@ about the business logic needs to change to switch. What's needed:
 1. **Supabase CLI**: `npm install -g supabase` (or the platform installer),
    then `supabase login` and `supabase link --project-ref <your-project-ref>`.
 2. **Apply the database schema**: `supabase db push` (applies
-   `supabase/migrations/20260906120000_email_forensics_schema.sql`), or use
+   `supabase/archive/20260906120000_email_forensics_schema.sql`), or use
    the SQL editor in the Supabase dashboard.
 3. **Deploy the functions**:
    `supabase functions deploy parse-email analyze-url check-threat-intel geolocate-ip investigate-email`

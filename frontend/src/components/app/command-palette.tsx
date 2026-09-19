@@ -2,7 +2,6 @@ import {
   BarChart3,
   Bell,
   Bookmark,
-  Bot,
   Gauge,
   LayoutDashboard,
   Radar,
@@ -69,10 +68,6 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           <CommandItem onSelect={() => go("/threat-intelligence")}>
             <Radar />
             Threat Intelligence
-          </CommandItem>
-          <CommandItem onSelect={() => go("/agent-control-room")}>
-            <Bot />
-            Agent Control Room
           </CommandItem>
           <CommandItem onSelect={() => go("/model-performance")}>
             <Gauge />

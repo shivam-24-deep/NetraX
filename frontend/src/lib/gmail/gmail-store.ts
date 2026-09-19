@@ -30,11 +30,14 @@ interface GmailState {
 }
 
 function loadAutoDetectPref(): boolean {
-  if (typeof window === "undefined") return true
+  // Off unless the user turned it on: the Gmail connection lives on the local
+  // server (one mailbox), so it must never silently import mail into whichever
+  // account happens to be signed in.
+  if (typeof window === "undefined") return false
   try {
-    return window.localStorage.getItem(AUTO_DETECT_STORAGE_KEY) !== "false"
+    return window.localStorage.getItem(AUTO_DETECT_STORAGE_KEY) === "true"
   } catch {
-    return true
+    return false
   }
 }
 

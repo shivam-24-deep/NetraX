@@ -33,7 +33,7 @@ as the new primary product.
 | 10 — Agentic orchestration | `supabase/functions/_shared/agent/orchestrator.ts` — dynamic tool selection | 9 unit tests confirming tools are actually skipped, not called-and-ignored, when irrelevant |
 | 11 — Risk engine | `supabase/functions/_shared/risk-engine/` — deterministic, capped-per-source scoring | 10 unit tests including per-source cap verification |
 | 12-13 — Evidence fusion & graph | `supabase/functions/_shared/evidence-graph/` | 5 unit tests |
-| 14-15 — Case management & DB schema | `supabase/migrations/20260906120000_email_forensics_schema.sql` (14 tables, RLS) | Written and reviewed; **not applied to a live database** — see §5 |
+| 14-15 — Case management & DB schema | `supabase/archive/20260906120000_email_forensics_schema.sql` (14 tables, RLS) | Written and reviewed; **not applied to a live database** — see §5 |
 | 16-19 — Frontend | Investigate page wired to the real backend; Evidence Graph view (case detail + result view); risk levels extended to include CRITICAL | TypeScript build clean, Vite compiles all changed modules, backend verified end-to-end via curl; **no pixel-level screenshot** — see §5 |
 | 21 — Demo data | `data/demo/` — 8 synthetic email cases | Run through the real pipeline; results in `reports/demo_validation.md` |
 

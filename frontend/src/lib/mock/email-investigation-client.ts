@@ -9,7 +9,33 @@
  * base URL) without any other code change.
  */
 
+import { toast } from "sonner"
+
+import { supabase } from "@/lib/supabase"
+
 const LOCAL_API_URL = import.meta.env.VITE_LOCAL_API_URL || "http://localhost:8787"
+
+// The deployed API requires the signed-in user's Supabase access token; the
+// local dev server ignores it. ngrok-skip-browser-warning bypasses ngrok's
+// one-time interstitial page when LOCAL_API_URL is a tunnel — a harmless
+// no-op otherwise.
+async function apiHeaders(json = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" }
+  if (json) headers["Content-Type"] = "application/json"
+  try {
+    const { data } = await supabase.auth.getSession()
+    if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`
+  } catch {
+    // no session available — the request goes out unauthenticated
+  }
+  return headers
+}
+
+/** Says why a rejected call failed instead of the generic "backend unavailable". */
+function explainRejection(status: number): void {
+  if (status === 401) toast.error("Your session expired. Please sign in again.")
+  else if (status === 429) toast.error("Too many requests — please wait a minute and try again.")
+}
 
 export type ToolStatus = "success" | "skipped" | "error"
 
@@ -113,14 +139,13 @@ export async function investigateEmailRemote(rawEmail: string): Promise<RemoteIn
     const timeout = setTimeout(() => controller.abort(), 25000)
     const res = await fetch(`${LOCAL_API_URL}/investigate-email`, {
       method: "POST",
-      // ngrok-skip-browser-warning bypasses ngrok's one-time interstitial HTML
-      // page when LOCAL_API_URL is a tunnel — harmless no-op against localhost.
-      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      headers: await apiHeaders(true),
       body: JSON.stringify({ input: rawEmail }),
       signal: controller.signal,
     })
     clearTimeout(timeout)
     if (!res.ok) {
+      explainRejection(res.status)
       apiAvailable = false
       return null
     }
@@ -138,12 +163,13 @@ export async function investigateUrlRemote(url: string): Promise<RemoteUrlInvest
     const timeout = setTimeout(() => controller.abort(), 15000)
     const res = await fetch(`${LOCAL_API_URL}/investigate-url`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      headers: await apiHeaders(true),
       body: JSON.stringify({ url }),
       signal: controller.signal,
     })
     clearTimeout(timeout)
     if (!res.ok) {
+      explainRejection(res.status)
       apiAvailable = false
       return null
     }
@@ -168,7 +194,7 @@ export interface GoogleAuthStatus {
 
 export async function getGoogleAuthStatus(): Promise<GoogleAuthStatus | null> {
   try {
-    const res = await fetch(`${LOCAL_API_URL}/auth/google/status`, { headers: { "ngrok-skip-browser-warning": "true" } })
+    const res = await fetch(`${LOCAL_API_URL}/auth/google/status`, { headers: await apiHeaders() })
     if (!res.ok) return null
     return (await res.json()) as GoogleAuthStatus
   } catch {
@@ -182,7 +208,7 @@ export function googleConnectUrl(): string {
 
 export async function disconnectGmailRemote(): Promise<boolean> {
   try {
-    const res = await fetch(`${LOCAL_API_URL}/auth/google/disconnect`, { method: "POST", headers: { "ngrok-skip-browser-warning": "true" } })
+    const res = await fetch(`${LOCAL_API_URL}/auth/google/disconnect`, { method: "POST", headers: await apiHeaders() })
     return res.ok
   } catch {
     return false
@@ -200,7 +226,7 @@ export async function checkGmailForNew(): Promise<GmailCheckNewResult | null> {
     const timeout = setTimeout(() => controller.abort(), 30000)
     const res = await fetch(`${LOCAL_API_URL}/gmail/check-new`, {
       method: "POST",
-      headers: { "ngrok-skip-browser-warning": "true" },
+      headers: await apiHeaders(),
       signal: controller.signal,
     })
     clearTimeout(timeout)

@@ -1,21 +1,22 @@
 import { useEffect } from "react"
-import { Navigate, Route, Routes, useLocation } from "react-router-dom"
+import { Route, Routes, useLocation } from "react-router-dom"
 
 import { AppLayout } from "@/components/layout"
 import { ProtectedRoute } from "@/components/protected-route"
 import { Toaster } from "@/components/ui/sonner"
-import AgentControlRoomPage from "@/pages/agent-control-room"
 import AlertsPage from "@/pages/alerts"
 import AnalyticsPage from "@/pages/analytics"
 import CaseDetailPage from "@/pages/case-detail"
 import CasesPage from "@/pages/cases"
 import DashboardPage from "@/pages/dashboard"
 import InvestigatePage from "@/pages/investigate"
+import LandingPage from "@/pages/landing"
 import LoginPage from "@/pages/login"
 import ModelPerformancePage from "@/pages/model-performance"
 import MyInvestigationsPage from "@/pages/my-investigations"
 import NotFoundPage from "@/pages/not-found"
 import PitchPage from "@/pages/pitch"
+import ResetPasswordPage from "@/pages/reset-password"
 import SavedCasesPage from "@/pages/saved-cases"
 import SendPage from "@/pages/send"
 import SettingsPage from "@/pages/settings"
@@ -36,9 +37,10 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/pitch" element={<PitchPage />} />
 
         <Route element={<ProtectedRoute />}>
@@ -54,7 +56,6 @@ function App() {
             <Route path="/my-investigations" element={<MyInvestigationsPage />} />
             <Route path="/saved-cases" element={<SavedCasesPage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
-            <Route path="/agent-control-room" element={<AgentControlRoomPage />} />
             <Route path="/model-performance" element={<ModelPerformancePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

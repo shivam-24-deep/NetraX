@@ -1,16 +1,18 @@
 import { Eye } from "lucide-react"
+import { useMemo } from "react"
+import { Link } from "react-router-dom"
 
 import { CaseRow } from "@/components/app/case-row"
 import { EmptyState } from "@/components/app/empty-state"
-import { DemoDataBanner } from "@/components/demo-data-banner"
+import { RiskBadge } from "@/components/risk-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCases } from "@/lib/mock/store"
-import { threatIndicators } from "@/lib/mock/threat-intel"
+import { deriveIndicators } from "@/lib/threat-indicators"
 
 export default function WatchlistPage() {
   const cases = useCases()
-  const watched = cases.filter((c) => c.watchlisted)
-  const watchedIndicators = threatIndicators.filter((t) => t.riskLevel === "HIGH").slice(0, 4)
+  const watched = useMemo(() => cases.filter((c) => c.watchlisted), [cases])
+  const watchedIndicators = useMemo(() => deriveIndicators(watched), [watched])
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,19 +38,30 @@ export default function WatchlistPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Watched High-Risk Indicators</CardTitle>
-          <DemoDataBanner className="mt-1.5" />
+          <CardTitle className="text-base">Indicators From Watched Cases</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          {watchedIndicators.map((t) => (
-            <div key={t.id} className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-mono text-xs">{t.value}</p>
-                <p className="text-xs text-muted-foreground">{t.category}</p>
-              </div>
-              <span className="shrink-0 text-xs text-muted-foreground">{t.reports} reports</span>
-            </div>
-          ))}
+          {watchedIndicators.length === 0 ? (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Indicators from watched MEDIUM-or-higher cases appear here.
+            </p>
+          ) : (
+            watchedIndicators.map((t) => (
+              <Link
+                key={t.id}
+                to={`/cases/${t.latestCaseId}`}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-sm transition-colors hover:bg-accent"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-xs">{t.value}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.type} · {t.category}
+                  </p>
+                </div>
+                <RiskBadge level={t.riskLevel} />
+              </Link>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

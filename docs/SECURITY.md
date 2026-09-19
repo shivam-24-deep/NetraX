@@ -38,7 +38,7 @@
 - The Supabase anon key is the one credential intentionally exposed to the
   browser bundle — by Supabase's own design, it's meant to be public and is
   useless without Row Level Security, which every table in
-  `supabase/migrations/20260906120000_email_forensics_schema.sql` has
+  `supabase/archive/20260906120000_email_forensics_schema.sql` has
   enabled.
 
 ## Database (Row Level Security)

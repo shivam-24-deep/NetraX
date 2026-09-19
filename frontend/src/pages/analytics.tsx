@@ -17,9 +17,10 @@ import {
 import { chartTooltipStyle, ChartCard } from "@/components/app/chart-card"
 import { realModelMetrics } from "@/lib/mock/real-model-metrics"
 import { useCases } from "@/lib/mock/store"
-import { getTrendData } from "@/lib/mock/trend-data"
+import { getTrend } from "@/lib/analytics"
 
 const RISK_COLORS: Record<string, string> = {
+  CRITICAL: "var(--color-risk-critical)",
   HIGH: "var(--color-risk-high)",
   MEDIUM: "var(--color-risk-medium)",
   LOW: "var(--color-risk-low)",
@@ -42,7 +43,7 @@ export default function AnalyticsPage() {
   const cases = useCases()
 
   const riskDistribution = useMemo(() => {
-    const tally: Record<string, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 }
+    const tally: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }
     for (const c of cases) tally[c.riskLevel] += 1
     return Object.entries(tally).map(([name, value]) => ({ name, value }))
   }, [cases])
@@ -74,7 +75,7 @@ export default function AnalyticsPage() {
     ]
   }, [cases])
 
-  const volumeData = getTrendData("30D")
+  const volumeData = useMemo(() => getTrend(cases, "30D"), [cases])
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,7 +147,7 @@ export default function AnalyticsPage() {
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="Model Performance — All Trained Models" demo={false}>
+        <ChartCard title="Model Performance — All Trained Models">
           <BarChart data={modelComparisonData}>
             <CartesianGrid vertical={false} stroke="var(--color-border)" />
             <XAxis dataKey="name" fontSize={10.5} stroke="var(--color-muted-foreground)" angle={-15} textAnchor="end" height={46} />

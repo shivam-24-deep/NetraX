@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { CaseRow } from "@/components/app/case-row"
+import { EmptyState } from "@/components/app/empty-state"
 import { chartTooltipStyle } from "@/components/app/chart-card"
 import { MetricCard } from "@/components/app/metric-card"
 import { StatusIndicator } from "@/components/app/status-indicator"
@@ -11,20 +12,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
 import { useCases } from "@/lib/mock/store"
-import { getTrendData, type TrendRange } from "@/lib/mock/trend-data"
+import { dailyCounts, getTrend, isHighOrCritical, weekOverWeek, type TrendRange } from "@/lib/analytics"
+import { useSystemHealth } from "@/lib/system-health"
 
 const RANGES: TrendRange[] = ["24H", "7D", "30D", "90D"]
-
-const SYSTEM_STATUS = [
-  { label: "AI Engine", detail: "Operational" },
-  { label: "Threat Intelligence", detail: "Connected" },
-  { label: "ML Engine", detail: "Operational" },
-  { label: "Database", detail: "Healthy" },
-]
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const cases = useCases()
+  const health = useSystemHealth()
   const [range, setRange] = useState<TrendRange>("7D")
 
   const displayName = (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] || "Analyst"
@@ -36,11 +32,11 @@ export default function DashboardPage() {
   }, [])
 
   const total = cases.length
-  const high = cases.filter((c) => c.riskLevel === "HIGH").length
+  const high = cases.filter(isHighOrCritical).length
   const medium = cases.filter((c) => c.riskLevel === "MEDIUM").length
   const low = cases.filter((c) => c.riskLevel === "LOW").length
 
-  const trendData = getTrendData(range)
+  const trendData = getTrend(cases, range)
   const liveFeed = [...cases]
     .filter((c) => c.riskLevel !== "LOW")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -62,7 +58,9 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold tracking-tight">
             {greeting}, {displayName}.
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">Your AI fraud investigation system is ready.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {total === 0 ? "Your workspace is empty — start your first investigation." : "Your AI fraud investigation system is ready."}
+          </p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button asChild>
@@ -82,17 +80,17 @@ export default function DashboardPage() {
 
       <Card>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {SYSTEM_STATUS.map((s) => (
-            <StatusIndicator key={s.label} label={s.label} detail={s.detail} tone="good" />
+          {health.services.map((s) => (
+            <StatusIndicator key={s.label} label={s.label} detail={s.detail} tone={s.tone} />
           ))}
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard icon={ScanSearch} label="Total Investigations" value={total} trend={{ value: 18.4, direction: "up" }} sparkline={[4, 6, 5, 8, 7, 9, 12]} tone="default" />
-        <MetricCard icon={ShieldAlert} label="High Risk" value={high} trend={{ value: 8.2, direction: "up" }} sparkline={[2, 3, 2, 4, 3, 5, 4]} tone="high" />
-        <MetricCard icon={ShieldAlert} label="Medium Risk" value={medium} sparkline={[3, 4, 4, 3, 5, 4, 6]} tone="medium" />
-        <MetricCard icon={CheckCircle2} label="Low Risk" value={low} sparkline={[5, 6, 7, 6, 8, 7, 9]} tone="low" />
+        <MetricCard icon={ScanSearch} label="Total Investigations" value={total} trend={weekOverWeek(cases)} sparkline={dailyCounts(cases)} tone="default" />
+        <MetricCard icon={ShieldAlert} label="High / Critical" value={high} sparkline={dailyCounts(cases, 7, isHighOrCritical)} tone="high" />
+        <MetricCard icon={ShieldAlert} label="Medium Risk" value={medium} sparkline={dailyCounts(cases, 7, (c) => c.riskLevel === "MEDIUM")} tone="medium" />
+        <MetricCard icon={CheckCircle2} label="Low Risk" value={low} sparkline={dailyCounts(cases, 7, (c) => c.riskLevel === "LOW")} tone="low" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -136,9 +134,10 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Live Threat Feed</CardTitle>
+            <CardTitle className="text-base">Recent Threats</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2.5">
+            {liveFeed.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">No MEDIUM or higher risk cases yet.</p>}
             {liveFeed.map((c) => (
               <Link
                 key={c.id}
@@ -171,8 +170,22 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col divide-y divide-border px-0 py-2">
+            {cases.length === 0 && (
+              <div className="p-6">
+                <EmptyState
+                  icon={ScanSearch}
+                  title="No investigations yet"
+                  description="Submit a suspicious email or link and its full forensic case will appear here."
+                  action={
+                    <Button size="sm" asChild>
+                      <Link to="/investigate">Start investigating</Link>
+                    </Button>
+                  }
+                />
+              </div>
+            )}
             {cases.slice(0, 5).map((c) => (
-              <CaseRow key={c.id} fraudCase={c} />
+              <CaseRow key={c.id} fraudCase={c} compact />
             ))}
           </CardContent>
         </Card>

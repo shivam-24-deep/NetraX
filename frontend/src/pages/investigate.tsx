@@ -450,7 +450,7 @@ function EmailInputPanel({ content, setContent }: { content: string; setContent:
           [
             ["paste", "Paste Email"],
             ["upload", "Upload .eml"],
-            ["demo", "Select Demo Email"],
+            ["demo", "Sample Emails"],
           ] as [EmailInputTab, string][]
         ).map(([value, label]) => (
           <button

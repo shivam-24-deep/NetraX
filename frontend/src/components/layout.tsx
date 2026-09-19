@@ -30,7 +30,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth"
-import { notifications } from "@/lib/mock/notifications"
+import { useAlerts } from "@/lib/mock/store"
+import { useSystemHealth } from "@/lib/system-health"
 import { cn } from "@/lib/utils"
 
 interface NavItem {
@@ -55,10 +56,6 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/watchlist", label: "Watchlist", icon: Eye },
 ]
 
-// /agent-control-room (the archived SMS-pipeline demo) is intentionally not
-// listed here — SIH26106's active story is EMAIL-FIRST. The route/page are
-// preserved, just not part of the active navigation (see investigate.tsx's
-// own comment on the archived SMS/Transaction modules).
 const SYSTEM_NAV: NavItem[] = [
   { to: "/model-performance", label: "Model Performance", icon: Gauge },
   { to: "/settings", label: "Settings", icon: Settings },
@@ -83,7 +80,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/my-investigations": "My Investigations",
   "/saved-cases": "Saved Cases",
   "/watchlist": "Watchlist",
-  "/agent-control-room": "Agent Control Room",
   "/model-performance": "Model Performance",
   "/settings": "Settings",
 }
@@ -247,19 +243,51 @@ function MobileBottomNav() {
   )
 }
 
+function timeAgo(iso: string): string {
+  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
+  if (seconds < 60) return "just now"
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86_400)}d ago`
+}
+
 function NotificationsMenu() {
-  const unread = notifications.filter((n) => !n.read).length
+  const { user } = useAuth()
+  const alerts = useAlerts()
+  const seenKey = `netrax.alerts-seen.${user?.id ?? "anon"}`
+  const [seenAt, setSeenAt] = useState<number>(() => {
+    try {
+      return Number(window.localStorage.getItem(seenKey)) || 0
+    } catch {
+      return 0
+    }
+  })
+
+  const unread = alerts.filter((a) => Date.parse(a.createdAt) > seenAt).length
+
+  function handleOpenChange(open: boolean) {
+    if (open) return
+    const now = Date.now()
+    setSeenAt(now)
+    try {
+      window.localStorage.setItem(seenKey, String(now))
+    } catch {
+      // per-viewer convenience only
+    }
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label="Notifications"
           className="relative flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Bell className="size-4" />
           {unread > 0 && (
             <span className="absolute top-1 right-1 flex size-3.5 items-center justify-center rounded-full bg-risk-high text-[9px] font-semibold text-risk-high-foreground">
-              {unread}
+              {unread > 9 ? "9+" : unread}
             </span>
           )}
         </button>
@@ -267,16 +295,22 @@ function NotificationsMenu() {
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel>Notifications</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {notifications.map((n) => (
-          <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 whitespace-normal">
-            <div className="flex w-full items-center gap-2">
-              {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-              <span className="text-sm font-medium">{n.title}</span>
-            </div>
-            <span className="pl-3.5 text-xs text-muted-foreground">{n.detail}</span>
-            <span className="pl-3.5 text-[10px] text-muted-foreground/70">{n.timestamp}</span>
-          </DropdownMenuItem>
-        ))}
+        {alerts.length === 0 ? (
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground">No notifications yet. HIGH and CRITICAL cases appear here.</p>
+        ) : (
+          alerts.slice(0, 8).map((a) => (
+            <DropdownMenuItem key={a.id} asChild className="flex flex-col items-start gap-0.5 whitespace-normal">
+              <Link to={`/cases/${a.caseId}`}>
+                <div className="flex w-full items-center gap-2">
+                  {Date.parse(a.createdAt) > seenAt && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                  <span className="text-sm font-medium">New {a.severity} risk case</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{a.threatType} · {a.caseId}</span>
+                <span className="text-[10px] text-muted-foreground/70">{timeAgo(a.createdAt)}</span>
+              </Link>
+            </DropdownMenuItem>
+          ))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -286,10 +320,11 @@ function TopBar({ title, onOpenPalette }: { title: string; onOpenPalette: () => 
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const health = useSystemHealth()
 
   async function handleSignOut() {
     await signOut()
-    navigate("/login", { replace: true })
+    navigate("/", { replace: true })
   }
 
   const crumbs = ["NetraX", title]
@@ -322,7 +357,7 @@ function TopBar({ title, onOpenPalette }: { title: string; onOpenPalette: () => 
       </button>
 
       <div className="hidden items-center lg:flex">
-        <StatusIndicator label="AI Systems Operational" tone="good" />
+        <StatusIndicator label={health.summary.label} tone={health.summary.tone} />
       </div>
 
       <NotificationsMenu />

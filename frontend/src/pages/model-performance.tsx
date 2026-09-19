@@ -112,7 +112,7 @@ export default function ModelPerformancePage() {
           </CardContent>
         </Card>
 
-        <ChartCard title="Feature Importance" demo={false}>
+        <ChartCard title="Feature Importance">
           <BarChart data={featureData} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid horizontal={false} stroke="var(--color-border)" />
             <XAxis type="number" fontSize={11} stroke="var(--color-muted-foreground)" />
@@ -123,7 +123,7 @@ export default function ModelPerformancePage() {
         </ChartCard>
       </div>
 
-      <ChartCard title={`Model Comparison — Candidates Evaluated for ${model.displayName}`} demo={false}>
+      <ChartCard title={`Model Comparison — Candidates Evaluated for ${model.displayName}`}>
         <BarChart data={comparisonData}>
           <CartesianGrid vertical={false} stroke="var(--color-border)" />
           <XAxis dataKey="metric" fontSize={10} stroke="var(--color-muted-foreground)" angle={-15} textAnchor="end" height={50} />

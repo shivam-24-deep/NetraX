@@ -1,21 +1,18 @@
 import type { ReactElement, ReactNode } from "react"
 import { ResponsiveContainer } from "recharts"
 
-import { DemoDataBanner } from "@/components/demo-data-banner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function ChartCard({
   title,
   action,
   height = 256,
-  demo = true,
   className,
   children,
 }: {
   title: string
   action?: ReactNode
   height?: number
-  demo?: boolean
   className?: string
   children: ReactNode
 }) {
@@ -24,7 +21,6 @@ export function ChartCard({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="text-base">{title}</CardTitle>
-          {demo && <DemoDataBanner className="mt-1.5" />}
         </div>
         {action}
       </CardHeader>
