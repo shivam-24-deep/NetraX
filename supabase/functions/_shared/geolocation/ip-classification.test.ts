@@ -59,6 +59,13 @@ test("classifies malformed input as invalid, never guesses", () => {
   assert.equal(classifyIp("not-an-ip"), "invalid");
 });
 
+test("unwraps 6to4 (2002::/16) addresses and classifies by their embedded IPv4", () => {
+  // 2002:0a05:7011:: embeds 10.5.112.17 — private, should not reach MaxMind.
+  assert.equal(classifyIp("2002:a05:7011:8383:b0:548:68ab:3c55"), "private");
+  // 2002:0808:0808:: embeds 8.8.8.8 — a real public 6to4 address.
+  assert.equal(classifyIp("2002:808:808::1"), "public");
+});
+
 test("isPublicIp / filterToPublicIps filter a mixed list correctly, preserving order", () => {
   const ips = ["10.0.0.1", "8.8.8.8", "127.0.0.1", "203.0.113.5", "1.1.1.1"];
   assert.deepEqual(filterToPublicIps(ips), ["8.8.8.8", "1.1.1.1"]);

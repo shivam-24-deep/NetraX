@@ -114,12 +114,28 @@ const IPV6_RANGES: Array<{ cidr: string; classification: IpClassification }> = [
   { cidr: "64:ff9b::/96", classification: "reserved" }, // NAT64
 ];
 
+/** 6to4 (2002::/16) and NAT64/Teredo-style embeddings carry a real IPv4 address in their bits — that address, not the IPv6 wrapper, determines routability. */
+function embeddedIpv4Classification(val: bigint): IpClassification | null {
+  const is6to4 = (val >> 112n) === 0x2002n;
+  if (!is6to4) return null;
+  const embedded = (val >> 80n) & 0xffffffffn;
+  const ip = [
+    (embedded >> 24n) & 0xffn,
+    (embedded >> 16n) & 0xffn,
+    (embedded >> 8n) & 0xffn,
+    embedded & 0xffn,
+  ].join(".");
+  return classifyIpv4(ip);
+}
+
 function classifyIpv6(ip: string): IpClassification {
   const val = expandIpv6(ip);
   if (val === null) return "invalid";
   for (const { cidr, classification } of IPV6_RANGES) {
     if (ipv6InCidr(ip, cidr)) return classification;
   }
+  const embedded = embeddedIpv4Classification(val);
+  if (embedded !== null && embedded !== "public") return embedded;
   return "public";
 }
 
