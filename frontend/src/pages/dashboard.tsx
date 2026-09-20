@@ -11,6 +11,7 @@ import { StatusIndicator } from "@/components/app/status-indicator"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
+import { displayNameOf } from "@/lib/user-display"
 import { useCases } from "@/lib/mock/store"
 import { dailyCounts, getTrend, isHighOrCritical, weekOverWeek, type TrendRange } from "@/lib/analytics"
 import { useSystemHealth } from "@/lib/system-health"
@@ -23,7 +24,7 @@ export default function DashboardPage() {
   const health = useSystemHealth()
   const [range, setRange] = useState<TrendRange>("7D")
 
-  const displayName = (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] || "Analyst"
+  const displayName = displayNameOf(user).split(" ")[0]
   const greeting = useMemo(() => {
     const hour = new Date().getHours()
     if (hour < 12) return "Good morning"

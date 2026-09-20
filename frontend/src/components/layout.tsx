@@ -20,7 +20,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { CommandPalette } from "@/components/app/command-palette"
 import { StatusIndicator } from "@/components/app/status-indicator"
 import { startGmailPolling } from "@/lib/gmail/gmail-store"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/app/user-avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth"
+import { displayNameOf } from "@/lib/user-display"
 import { useAlerts } from "@/lib/mock/store"
 import { useSystemHealth } from "@/lib/system-health"
 import { cn } from "@/lib/utils"
@@ -168,7 +169,7 @@ function NavSection({ title, items, collapsed }: { title: string; items: NavItem
 
 function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { user } = useAuth()
-  const displayName = (user?.user_metadata?.full_name as string | undefined) || user?.email?.split("@")[0] || "Analyst"
+  const displayName = displayNameOf(user)
 
   return (
     <motion.aside
@@ -204,9 +205,7 @@ function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
       <div className="border-t border-sidebar-border p-3">
         <div className={cn("flex items-center gap-2.5 rounded-lg px-1 py-1.5", collapsed && "justify-center")}>
-          <Avatar className="size-8 shrink-0">
-            <AvatarFallback className="bg-sidebar-accent text-xs">{displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <UserAvatar user={user} className="size-8 shrink-0" fallbackClassName="bg-sidebar-accent" />
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium">{displayName}</p>
@@ -365,16 +364,12 @@ function TopBar({ title, onOpenPalette }: { title: string; onOpenPalette: () => 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Avatar className="size-8">
-              <AvatarFallback>
-                <User className="size-4" />
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar user={user} className="size-8" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel className="truncate">
-            {(user?.user_metadata?.full_name as string | undefined) || user?.email || "Account"}
+            {displayNameOf(user)}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>

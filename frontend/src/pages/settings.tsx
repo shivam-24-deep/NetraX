@@ -8,12 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { UserAvatar } from "@/components/app/user-avatar"
 import { useAuth } from "@/lib/auth"
+import { displayNameOf } from "@/lib/user-display"
 import { deleteAllMyData, useCases } from "@/lib/mock/store"
 
 function ProfileCard() {
   const { user, updateProfile } = useAuth()
-  const current = (user?.user_metadata?.full_name as string | undefined) || ""
+  const current = displayNameOf(user) === user?.email?.split("@")[0] ? "" : displayNameOf(user)
   const [name, setName] = useState(current)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,6 +42,12 @@ function ProfileCard() {
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+          <div className="flex items-center gap-3">
+            <UserAvatar user={user} className="size-14" fallbackClassName="text-base" />
+            <p className="text-xs text-muted-foreground">
+              Signed in with Google? Your Google profile photo is shown here and across NetraX automatically.
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="settings-name">Full name</Label>
             <Input id="settings-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" />
