@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 
 /** "https://app.example.com, https://*.vercel.app" -> matchers. Undefined/empty = allow any origin (local dev). */
 export function parseAllowedOrigins(raw: string | undefined): RegExp[] | null {
-  const entries = (raw ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const entries = (raw ?? "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean); // a pasted trailing "/" would never match a browser Origin
   if (entries.length === 0) return null;
   return entries.map((entry) => {
     const escaped = entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*");

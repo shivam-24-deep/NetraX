@@ -35,6 +35,14 @@ describe("CORS allow-list", () => {
   });
 });
 
+describe("CORS allow-list formatting", () => {
+  it("ignores a trailing slash pasted into the setting", () => {
+    const res = fakeRes();
+    applyCors(reqWithOrigin("https://netra-x-chi.vercel.app"), res, parseAllowedOrigins("https://netra-x-chi.vercel.app/"));
+    assert.equal(res.headers["Access-Control-Allow-Origin"], "https://netra-x-chi.vercel.app");
+  });
+});
+
 describe("Supabase token verification", () => {
   const okFetch = (calls: string[]) =>
     (async (url: string, init: RequestInit) => {
