@@ -27,30 +27,38 @@ interface GmailState {
   lastScanFoundCount: number | null
   /** Running total across this browser session, so a case found by a silent background poll is never invisible even if its toast was missed. */
   totalAutoDetectedCount: number
+  /** The connected Google account's address. */
+  email: string | null
+  /** Why the connection state could not be read (e.g. database table missing). */
+  statusError: string | null
 }
 
+// On once a user has connected their own Gmail; they can switch it off here.
 function loadAutoDetectPref(): boolean {
-  // Off unless the user turned it on: the Gmail connection lives on the local
-  // server (one mailbox), so it must never silently import mail into whichever
-  // account happens to be signed in.
-  if (typeof window === "undefined") return false
+  if (typeof window === "undefined") return true
   try {
-    return window.localStorage.getItem(AUTO_DETECT_STORAGE_KEY) === "true"
+    return window.localStorage.getItem(AUTO_DETECT_STORAGE_KEY) !== "false"
   } catch {
-    return false
+    return true
   }
 }
 
-let state: GmailState = {
-  configured: null,
-  connected: null,
-  autoDetectEnabled: loadAutoDetectPref(),
-  scanning: false,
-  lastCheckedAt: null,
-  lastError: null,
-  lastScanFoundCount: null,
-  totalAutoDetectedCount: 0,
+function initialState(): GmailState {
+  return {
+    configured: null,
+    connected: null,
+    autoDetectEnabled: loadAutoDetectPref(),
+    scanning: false,
+    lastCheckedAt: null,
+    lastError: null,
+    lastScanFoundCount: null,
+    totalAutoDetectedCount: 0,
+    email: null,
+    statusError: null,
+  }
 }
+
+let state: GmailState = initialState()
 const listeners = new Set<() => void>()
 
 function setState(patch: Partial<GmailState>) {
@@ -73,7 +81,12 @@ export function useGmailState(): GmailState {
 
 export async function refreshGmailStatus(): Promise<void> {
   const status = await getGoogleAuthStatus()
-  setState({ configured: status?.configured ?? false, connected: status?.connected ?? false })
+  setState({
+    configured: status?.configured ?? false,
+    connected: status?.connected ?? false,
+    email: status?.email ?? null,
+    statusError: status?.error ?? null,
+  })
 }
 
 export function setAutoDetectEnabled(enabled: boolean): void {
@@ -90,12 +103,13 @@ export async function scanGmailNow(): Promise<{ scanned: number; flagged: number
   setState({ scanning: true, lastError: null })
   try {
     const res = await checkGmailForNew()
-    if (!res) {
-      setState({ scanning: false, lastError: "Investigation backend unavailable." })
+    if (!res.ok) {
+      // A revoked/expired Google grant means "not connected" again, not a transient error.
+      setState({ scanning: false, lastError: res.error, ...(res.reconnect ? { connected: false, email: null } : {}) })
       return null
     }
     let flagged = 0
-    for (const item of res.results) {
+    for (const item of res.data.results) {
       const hash = await sha256Hex(item.rawEmail)
       if (findCaseByEmailHash(hash)) continue // already investigated — idempotency, same as every other entry point
       const fraudCase = await buildFraudCaseFromEmailResult(item.rawEmail, item.result, "gmail_auto")
@@ -116,7 +130,7 @@ export async function scanGmailNow(): Promise<{ scanned: number; flagged: number
       lastScanFoundCount: flagged,
       totalAutoDetectedCount: state.totalAutoDetectedCount + flagged,
     })
-    return { scanned: res.scanned, flagged }
+    return { scanned: res.data.scanned, flagged }
   } catch (err) {
     setState({ scanning: false, lastError: err instanceof Error ? err.message : "Gmail scan failed." })
     return null
@@ -134,4 +148,13 @@ export function startGmailPolling(): void {
   pollHandle = setInterval(() => {
     if (state.connected && state.autoDetectEnabled && !state.scanning) void scanGmailNow()
   }, POLL_INTERVAL_MS)
+}
+
+/** Stops polling and forgets the previous user's Gmail state — called on sign-out / user change so one account's mailbox status never shows for the next. */
+export function stopGmailPolling(): void {
+  if (pollHandle) {
+    clearInterval(pollHandle)
+    pollHandle = null
+  }
+  setState(initialState())
 }

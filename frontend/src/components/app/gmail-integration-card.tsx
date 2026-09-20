@@ -1,20 +1,20 @@
-// Real Gmail auto-detect connection UI (Settings -> Integrations). Unlike
-// every other tab on the Settings page, nothing here is a disabled stub —
-// Connect/Disconnect/Check now all hit the real server/local-api.ts +
-// server/gmail-client.ts endpoints.
+// Real Gmail auto-detect connection UI (Settings -> Integrations). Each signed-in
+// user connects THEIR OWN Gmail; the server keeps that connection (encrypted)
+// per user, so nobody's mail is ever scanned into someone else's account.
 import { AlertTriangle, CheckCircle2, Mail, RefreshCw } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { disconnectGmailRemote, googleConnectUrl } from "@/lib/mock/email-investigation-client"
+import { disconnectGmailRemote, startGoogleConnect } from "@/lib/mock/email-investigation-client"
 import { refreshGmailStatus, scanGmailNow, setAutoDetectEnabled, useGmailState } from "@/lib/gmail/gmail-store"
 
 export function GmailIntegrationCard() {
   const state = useGmailState()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [connecting, setConnecting] = useState(false)
 
   useEffect(() => {
     void refreshGmailStatus()
@@ -24,7 +24,7 @@ export function GmailIntegrationCard() {
     const gmailParam = searchParams.get("gmail")
     if (!gmailParam) return
     if (gmailParam === "connected") {
-      toast.success("Gmail connected — NetraX will auto-detect new suspicious mail while this app is open.")
+      toast.success("Gmail connected — NetraX will auto-detect new mail from your inbox while this app is open.")
       void refreshGmailStatus()
     } else if (gmailParam === "error") {
       toast.error(`Gmail connection failed: ${searchParams.get("reason") ?? "unknown error"}`)
@@ -35,6 +35,17 @@ export function GmailIntegrationCard() {
     setSearchParams(next, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  async function handleConnect() {
+    setConnecting(true)
+    const result = await startGoogleConnect()
+    if ("url" in result) {
+      window.location.href = result.url
+      return
+    }
+    setConnecting(false)
+    toast.error(result.error)
+  }
 
   async function handleDisconnect() {
     const ok = await disconnectGmailRemote()
@@ -81,12 +92,11 @@ export function GmailIntegrationCard() {
           <div className="flex items-start gap-2 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              Not configured — this server has no Google OAuth credentials. Add{" "}
-              <code className="rounded bg-muted px-1 py-0.5">GOOGLE_CLIENT_ID</code> /{" "}
-              <code className="rounded bg-muted px-1 py-0.5">GOOGLE_CLIENT_SECRET</code> to the repo-root{" "}
-              <code className="rounded bg-muted px-1 py-0.5">.env</code> and restart{" "}
-              <code className="rounded bg-muted px-1 py-0.5">node server/local-api.ts</code> — see{" "}
-              <code className="rounded bg-muted px-1 py-0.5">.env.example</code> for setup steps.
+              Gmail auto-detect isn&apos;t enabled on this server yet. The administrator needs to add Google OAuth credentials
+              (<code className="rounded bg-muted px-1 py-0.5">GOOGLE_CLIENT_ID</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5">GOOGLE_CLIENT_SECRET</code>) and, when deployed, a{" "}
+              <code className="rounded bg-muted px-1 py-0.5">GMAIL_TOKEN_KEY</code> — see{" "}
+              <code className="rounded bg-muted px-1 py-0.5">.env.example</code>.
             </span>
           </div>
         </CardContent>
@@ -108,7 +118,7 @@ export function GmailIntegrationCard() {
           <>
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="size-4 text-emerald-500" />
-              <span className="font-medium">Connected</span>
+              <span className="font-medium">Connected{state.email ? ` as ${state.email}` : ""}</span>
               {state.lastCheckedAt && (
                 <span className="text-xs text-muted-foreground">— last checked {new Date(state.lastCheckedAt).toLocaleTimeString()}</span>
               )}
@@ -160,10 +170,16 @@ export function GmailIntegrationCard() {
               Connect your Gmail account (read-only) to let NetraX automatically investigate new emails as they arrive —
               no manual paste/share needed.
             </p>
-            <Button className="self-start" onClick={() => (window.location.href = googleConnectUrl())}>
+            {state.statusError && <p className="text-xs text-destructive">{state.statusError}</p>}
+            {state.lastError && <p className="text-xs text-destructive">{state.lastError}</p>}
+            <Button className="self-start" onClick={handleConnect} disabled={connecting || !!state.statusError}>
               <Mail className="size-4" />
-              Connect Gmail
+              {connecting ? "Opening Google…" : "Connect Gmail"}
             </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Read-only access, and only to your own inbox. If Google shows &quot;Access blocked&quot;, the app is still in testing —
+              ask the NetraX administrator to add your Gmail address as a test user.
+            </p>
           </>
         )}
       </CardContent>

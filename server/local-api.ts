@@ -35,9 +35,12 @@ import {
   disconnectGmail,
   exchangeCodeForTokens,
   fetchNewGmailMessages,
-  isGmailConnected,
+  getGmailStatus,
+  GmailReconnectRequired,
   isGoogleConfigured,
 } from "./gmail-client.ts";
+import { createFileStore, createSupabaseGmailStore, GmailStorageError, type GmailStore } from "./gmail-storage.ts";
+import { createStateStore } from "./oauth-state.ts";
 import { applyCors, clientIp, createRateLimiter, createSupabaseVerifier, parseAllowedOrigins } from "./security.ts";
 
 // Load repo-root .env (GOOGLE_CLIENT_ID, PHISHTANK_APP_KEY, etc.) if present —
@@ -51,13 +54,13 @@ try {
 
 const PORT = Number(process.env.PORT ?? process.env.LOCAL_API_PORT ?? 8787);
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
+const FRONTEND_URL = (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/+$/, "");
 
-// Deployed mode. REQUIRE_AUTH=true makes every route except /health demand a
-// valid Supabase login (Authorization: Bearer <access token>), restricts CORS to
-// ALLOWED_ORIGINS, rate-limits per user, and turns the Gmail routes off (the
-// Gmail connection is a single mailbox on this server — it must never be
-// shared between users). Left unset, this is the open local-dev server.
+// Deployed mode. REQUIRE_AUTH=true makes every route except /health, /status and
+// the Google OAuth callback demand a valid Supabase login (Authorization: Bearer
+// <access token>), restricts CORS to ALLOWED_ORIGINS, rate-limits per user, and
+// gives every user their OWN Gmail connection (encrypted in Supabase, see
+// gmail-storage.ts). Left unset, this is the open single-user local-dev server.
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === "true";
 const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 const rateLimit = createRateLimiter(Number(process.env.RATE_LIMIT_PER_MIN ?? 60));
@@ -71,6 +74,30 @@ if (REQUIRE_AUTH && !allowedOrigins) {
   console.warn("WARNING: REQUIRE_AUTH=true but ALLOWED_ORIGINS is not set — any website may call this API from a signed-in browser.");
 }
 const verifyUser = REQUIRE_AUTH ? createSupabaseVerifier({ url: SUPABASE_URL!, anonKey: SUPABASE_ANON_KEY! }) : null;
+
+// Gmail. Deployed, per-user tokens are encrypted with GMAIL_TOKEN_KEY, so without
+// it the integration stays off rather than storing anything unprotected.
+const GMAIL_TOKEN_KEY = process.env.GMAIL_TOKEN_KEY;
+const gmailAvailable = () => isGoogleConfigured() && (!REQUIRE_AUTH || Boolean(GMAIL_TOKEN_KEY));
+const oauthStates = createStateStore<RequestContext>();
+const localGmailStore = createFileStore();
+
+interface RequestContext {
+  userId?: string;
+  /** The caller's Supabase access token — used so database access stays scoped to them by RLS. */
+  jwt?: string;
+}
+
+function gmailStoreFor(ctx: RequestContext): GmailStore {
+  if (!REQUIRE_AUTH) return localGmailStore;
+  return createSupabaseGmailStore({
+    url: SUPABASE_URL!,
+    anonKey: SUPABASE_ANON_KEY!,
+    userJwt: ctx.jwt!,
+    userId: ctx.userId!,
+    encryptionKey: GMAIL_TOKEN_KEY!,
+  });
+}
 
 // Best-effort LAN IPv4 discovery — used only so the "Send to NetraX" mobile QR
 // code can point a phone at this machine's real network address instead of
@@ -146,7 +173,7 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
-type Handler = (body: unknown) => Promise<{ status: number; body: unknown }>;
+type Handler = (body: unknown, ctx: RequestContext) => Promise<{ status: number; body: unknown }>;
 
 const routes: Record<string, Handler> = {
   "/parse-email": async (body) => {
@@ -208,53 +235,87 @@ const routes: Record<string, Handler> = {
     return { status: 200, body: { results } };
   },
 
-  "/auth/google/disconnect": async () => {
-    disconnectGmail();
-    return { status: 200, body: { connected: false } };
+  "/auth/google/start": async (_body, ctx) => {
+    if (!gmailAvailable()) return { status: 400, body: { error: "Gmail is not configured on this server." } };
+    return { status: 200, body: { url: buildGoogleAuthUrl(oauthStates.create(ctx)) } };
+  },
+
+  "/auth/google/disconnect": async (_body, ctx) => {
+    try {
+      await disconnectGmail(gmailStoreFor(ctx));
+      return { status: 200, body: { connected: false } };
+    } catch (err) {
+      return gmailFailure(err, "Failed to disconnect Gmail.");
+    }
   },
 
   // Gmail auto-detect (SIH26106 mobile-ingest follow-up): scans for inbox
   // messages that arrived since connecting (never a bulk history scan — see
   // gmail-client.ts) and runs each through the SAME investigateEmail()
   // pipeline /investigate-email uses. Never a separate/lesser analysis path.
-  "/gmail/check-new": async () => {
-    if (!isGoogleConfigured()) return { status: 400, body: { error: "Gmail is not configured (missing GOOGLE_CLIENT_ID/SECRET)." } };
-    if (!isGmailConnected()) return { status: 400, body: { error: "Gmail is not connected. Visit /auth/google/start first." } };
+  // Each user only ever scans their own mailbox (their own stored connection).
+  "/gmail/check-new": async (_body, ctx) => {
+    if (!gmailAvailable()) return { status: 400, body: { error: "Gmail is not configured on this server." } };
     try {
-      const messages = await fetchNewGmailMessages(5);
+      const messages = await fetchNewGmailMessages(gmailStoreFor(ctx), 5);
       const results = await Promise.all(
         messages.map(async (m) => ({ messageId: m.messageId, rawEmail: m.rawEmail, result: await investigateEmail(m.rawEmail) })),
       );
       return { status: 200, body: { scanned: messages.length, results } };
     } catch (err) {
-      console.error("gmail/check-new failed:", err);
-      return { status: 502, body: { error: "Failed to check Gmail for new messages." } };
+      if (err instanceof Error && err.message === "Gmail is not connected") {
+        return { status: 400, body: { error: "Gmail is not connected. Connect it in Settings, Integrations." } };
+      }
+      return gmailFailure(err, "Failed to check Gmail for new messages.");
     }
   },
 };
 
-type GetHandler = (req: http.IncomingMessage) => Promise<{ status: number; body: unknown } | { redirect: string }>;
+function gmailFailure(err: unknown, fallback: string): { status: number; body: unknown } {
+  if (err instanceof GmailReconnectRequired) return { status: 409, body: { error: err.message, reconnect: true } };
+  if (err instanceof GmailStorageError) return { status: 503, body: { error: err.message } };
+  console.error(fallback, err);
+  return { status: 502, body: { error: fallback } };
+}
+
+type GetHandler = (req: http.IncomingMessage, ctx: RequestContext) => Promise<{ status: number; body: unknown } | { redirect: string }>;
 
 const getRoutes: Record<string, GetHandler> = {
-  "/auth/google/status": async () => ({ status: 200, body: { configured: isGoogleConfigured(), connected: isGmailConnected() } }),
+  "/auth/google/status": async (_req, ctx) => {
+    if (!gmailAvailable()) return { status: 200, body: { configured: false, connected: false } };
+    try {
+      const status = await getGmailStatus(gmailStoreFor(ctx));
+      return { status: 200, body: { configured: true, ...status } };
+    } catch (err) {
+      // e.g. the table has not been created yet: still "configured", but say why it cannot connect
+      return { status: 200, body: { configured: true, connected: false, error: err instanceof GmailStorageError ? err.message : "Could not read the Gmail connection." } };
+    }
+  },
 
-  "/auth/google/start": async () => {
-    if (!isGoogleConfigured()) return { status: 400, body: { error: "Gmail is not configured (missing GOOGLE_CLIENT_ID/SECRET) — see .env.example." } };
-    return { redirect: buildGoogleAuthUrl() };
+  // Local development convenience (open a URL in the browser). Deployed, the
+  // frontend uses POST /auth/google/start instead, because a plain navigation
+  // cannot carry the login token.
+  "/auth/google/start": async (_req, ctx) => {
+    if (!gmailAvailable()) return { status: 400, body: { error: "Gmail is not configured (missing GOOGLE_CLIENT_ID/SECRET) — see .env.example." } };
+    return { redirect: buildGoogleAuthUrl(oauthStates.create(ctx)) };
   },
 
   "/auth/google/callback": async (req) => {
     const url = new URL(req.url ?? "", `http://localhost:${PORT}`);
+    const fail = (reason: string) => ({ redirect: `${FRONTEND_URL}/settings?gmail=error&reason=${encodeURIComponent(reason)}` });
+    // The browser arrives here straight from Google with no login header, so who
+    // is connecting comes from the one-time state issued by an authenticated /start.
+    const owner = oauthStates.consume(url.searchParams.get("state"));
+    if (!owner) return fail("This connection link expired or was already used. Please try connecting again.");
+    if (url.searchParams.get("error")) return fail(url.searchParams.get("error")!);
     const code = url.searchParams.get("code");
-    const error = url.searchParams.get("error");
-    if (error) return { redirect: `${FRONTEND_URL}/settings?gmail=error&reason=${encodeURIComponent(error)}` };
-    if (!code) return { status: 400, body: { error: "Missing OAuth code." } };
+    if (!code) return fail("Google did not return an authorization code.");
     try {
-      await exchangeCodeForTokens(code);
+      await exchangeCodeForTokens(code, gmailStoreFor(owner));
       return { redirect: `${FRONTEND_URL}/settings?gmail=connected` };
     } catch (err) {
       console.error("Google OAuth exchange failed:", err);
-      return { redirect: `${FRONTEND_URL}/settings?gmail=error&reason=${encodeURIComponent(err instanceof Error ? err.message : "unknown")}` };
+      return fail(err instanceof GmailStorageError ? err.message : err instanceof Error ? err.message : "unknown");
     }
   },
 };
@@ -281,16 +342,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   const path = (req.url ?? "").split("?")[0];
-  if (REQUIRE_AUTH && (path.startsWith("/auth/google") || path.startsWith("/gmail"))) {
-    if (path === "/auth/google/status") {
-      sendJson(res, 200, { configured: false, connected: false, disabled: true });
-    } else {
-      sendJson(res, 404, { error: "Gmail integration is only available on a local install." });
-    }
+  const isGmailPath = path.startsWith("/auth/google") || path.startsWith("/gmail");
+  if (isGmailPath && REQUIRE_AUTH && !gmailAvailable()) {
+    if (path === "/auth/google/status") sendJson(res, 200, { configured: false, connected: false });
+    else sendJson(res, 404, { error: "Gmail integration is not enabled on this server." });
     return;
   }
 
-  if (verifyUser) {
+  let ctx: RequestContext = {};
+  // The OAuth callback is a browser redirect from Google and cannot carry a login
+  // header; it is protected by the single-use state instead (see oauth-state.ts).
+  if (verifyUser && path !== "/auth/google/callback") {
     const user = await verifyUser(req.headers.authorization);
     if (!user) {
       sendJson(res, 401, { error: "Sign in required." });
@@ -302,12 +364,13 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 429, { error: "Too many requests. Please wait a moment and try again." });
       return;
     }
+    ctx = { userId: user.id, jwt: /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "")?.[1]?.trim() };
   }
   if (req.method === "GET" && req.url) {
     const getHandler = getRoutes[path];
     if (getHandler) {
       try {
-        const result = await getHandler(req);
+        const result = await getHandler(req, ctx);
         if ("redirect" in result) sendRedirect(res, result.redirect);
         else sendJson(res, result.status, result.body);
       } catch (err) {
@@ -331,7 +394,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const raw = await readBody(req);
     const parsed = raw ? JSON.parse(raw) : {};
-    const { status, body } = await handler(parsed);
+    const { status, body } = await handler(parsed, ctx);
     sendJson(res, status, body);
   } catch (err) {
     if (err instanceof SyntaxError) {
@@ -349,5 +412,11 @@ server.listen(PORT, () => {
     "Routes: /health, /network-info, /parse-email, /investigate-email, /investigate-url, /analyze-url, " +
       "/check-threat-intel, /geolocate-ip, /auth/google/{status,start,callback,disconnect}, /gmail/check-new",
   );
-  console.log(isGoogleConfigured() ? "Gmail auto-detect: configured" : "Gmail auto-detect: not configured (see .env.example GOOGLE_CLIENT_ID/SECRET)");
+  console.log(
+    gmailAvailable()
+      ? `Gmail auto-detect: configured (${REQUIRE_AUTH ? "per-user, encrypted in Supabase" : "single local mailbox"})`
+      : REQUIRE_AUTH && isGoogleConfigured()
+        ? "Gmail auto-detect: OFF — set GMAIL_TOKEN_KEY to enable per-user connections"
+        : "Gmail auto-detect: not configured (see .env.example GOOGLE_CLIENT_ID/SECRET)",
+  );
 });

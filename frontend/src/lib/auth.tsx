@@ -1,6 +1,7 @@
 import type { Session, User } from "@supabase/supabase-js"
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 
+import { stopGmailPolling } from "@/lib/gmail/gmail-store"
 import { loadStoreForUser, resetStore } from "@/lib/mock/store"
 import { isSupabaseConfigured, setRememberMe, supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase"
 
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // someone signs in and drop them from memory the moment they sign out.
   const userId = session?.user?.id ?? null
   useEffect(() => {
+    stopGmailPolling()
     if (userId) void loadStoreForUser(userId)
     else resetStore()
   }, [userId])

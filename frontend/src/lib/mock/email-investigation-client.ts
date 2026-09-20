@@ -191,6 +191,10 @@ export async function investigateUrlRemote(url: string): Promise<RemoteUrlInvest
 export interface GoogleAuthStatus {
   configured: boolean
   connected: boolean
+  /** The connected Google account, when known. */
+  email?: string
+  /** Why the connection state could not be read (e.g. the database table is missing). */
+  error?: string
 }
 
 export async function getGoogleAuthStatus(): Promise<GoogleAuthStatus | null> {
@@ -203,8 +207,16 @@ export async function getGoogleAuthStatus(): Promise<GoogleAuthStatus | null> {
   }
 }
 
-export function googleConnectUrl(): string {
-  return `${LOCAL_API_URL}/auth/google/start`
+/** Asks the server (as the signed-in user) for a one-time Google consent URL; the caller then navigates there. */
+export async function startGoogleConnect(): Promise<{ url: string } | { error: string }> {
+  try {
+    const res = await fetch(`${LOCAL_API_URL}/auth/google/start`, { method: "POST", headers: await apiHeaders(true), body: "{}" })
+    const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+    if (res.ok && typeof body.url === "string") return { url: body.url }
+    return { error: body.error ?? "Could not start the Gmail connection." }
+  } catch {
+    return { error: "Could not reach the server. Please try again." }
+  }
 }
 
 export async function disconnectGmailRemote(): Promise<boolean> {
@@ -221,19 +233,26 @@ export interface GmailCheckNewResult {
   results: { messageId: string; rawEmail: string; result: RemoteInvestigationResult }[]
 }
 
-export async function checkGmailForNew(): Promise<GmailCheckNewResult | null> {
+export type GmailCheckResult =
+  | { ok: true; data: GmailCheckNewResult }
+  | { ok: false; error: string; /** Google access is gone; the user has to connect Gmail again. */ reconnect?: boolean }
+
+export async function checkGmailForNew(): Promise<GmailCheckResult> {
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30000)
+    const timeout = setTimeout(() => controller.abort(), 90_000)
     const res = await fetch(`${LOCAL_API_URL}/gmail/check-new`, {
       method: "POST",
       headers: await apiHeaders(),
       signal: controller.signal,
     })
     clearTimeout(timeout)
-    if (!res.ok) return null
-    return (await res.json()) as GmailCheckNewResult
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string; reconnect?: boolean }
+      return { ok: false, error: body.error ?? "Gmail check failed.", reconnect: body.reconnect }
+    }
+    return { ok: true, data: (await res.json()) as GmailCheckNewResult }
   } catch {
-    return null
+    return { ok: false, error: "Investigation backend unavailable." }
   }
 }

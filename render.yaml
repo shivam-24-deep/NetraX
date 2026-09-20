@@ -48,6 +48,19 @@ services:
         value: "8000"
       - key: RATE_LIMIT_PER_MIN
         value: "60"
+      # Gmail auto-detect: every user connects their own Gmail. Their Google tokens are
+      # stored in Supabase encrypted with GMAIL_TOKEN_KEY (generated once by Render).
+      # Changing that key later makes existing connections unreadable (users reconnect).
+      - key: GMAIL_TOKEN_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://netra-x-chi.vercel.app
+      - key: GOOGLE_REDIRECT_URI
+        value: https://netrax-api-474p.onrender.com/auth/google/callback
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       # Optional threat-intel / geolocation providers (features report
       # "not configured" honestly when these are left empty).
       - key: PHISHTANK_APP_KEY
