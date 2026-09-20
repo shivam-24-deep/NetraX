@@ -135,8 +135,9 @@ export async function investigateEmailRemote(rawEmail: string): Promise<RemoteIn
   try {
     const controller = new AbortController()
     // Investigations make several real network calls in sequence (ML model,
-    // threat intel, geolocation) — a longer timeout than a single lookup.
-    const timeout = setTimeout(() => controller.abort(), 25000)
+    // threat intel, geolocation). The generous limit also covers a hosted free-tier
+    // API that has spun down and needs ~50s to wake before it can answer.
+    const timeout = setTimeout(() => controller.abort(), 90_000)
     const res = await fetch(`${LOCAL_API_URL}/investigate-email`, {
       method: "POST",
       headers: await apiHeaders(true),
@@ -160,7 +161,7 @@ export async function investigateEmailRemote(rawEmail: string): Promise<RemoteIn
 export async function investigateUrlRemote(url: string): Promise<RemoteUrlInvestigationResult | null> {
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000)
+    const timeout = setTimeout(() => controller.abort(), 75_000) // covers a free-tier cold start
     const res = await fetch(`${LOCAL_API_URL}/investigate-url`, {
       method: "POST",
       headers: await apiHeaders(true),
