@@ -1,0 +1,24 @@
+From: HDFC Bank Security <security-alert@hdfc-bank-verify.xyz>
+Reply-To: claims.desk8842@gmail.com
+Return-Path: <bounce@mailer-x9.top>
+To: customer@example.com
+Subject: URGENT!!! Your account will be BLOCKED in 24 hours - verify KYC immediately
+Date: Sat, 1 Mar 2025 03:12:00 +0000
+Message-ID: <a81f3c@hdfc-bank-verify.xyz>
+Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=mailer-x9.top; dkim=fail; dmarc=fail
+Received: from unknown (HELO mail.hdfc-bank-verify.xyz) ([185.220.101.47]) by mx.example.com with SMTP; Sat, 1 Mar 2025 03:12:00 +0000
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Dear Customer,</p>
+<p><b>FINAL WARNING:</b> Suspicious activity was detected on your account. Your account
+will be permanently suspended within 24 hours unless you verify your identity
+immediately. Act now to avoid legal action and loss of funds.</p>
+<p><a href="http://185.220.101.47/hdfc/netbanking/login.php?session=verify">Click here to verify your KYC and update your net banking password</a></p>
+<p>Also confirm your card number, CVV, PIN and the OTP sent to your phone at:
+<a href="http://hdfc-bank-verify.xyz/otp">http://hdfc-bank-verify.xyz/otp</a></p>
+<p>A refund of Rs. 48,500 is pending in your name. To claim your prize and refund,
+send a processing fee via gift card or wire transfer to the account provided.
+Do not tell anyone - this is confidential.</p>
+<p>Regards,<br>HDFC Bank Security Team</p>
+</body></html>

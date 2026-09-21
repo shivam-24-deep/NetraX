@@ -36,3 +36,6 @@ data/processed/
 data/splits/
 
 
+
+# Personal resume PDFs (contain a phone number) - never commit
+Shivamdeep Resume*.pdf
