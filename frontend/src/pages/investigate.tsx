@@ -186,7 +186,7 @@ export default function InvestigatePage() {
       return
     }
 
-    addCase(result)
+    await addCase(result)
     setResultCase(result)
     setPhase("result")
   }

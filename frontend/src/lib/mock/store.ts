@@ -176,22 +176,25 @@ export async function deleteAllMyData(): Promise<string | null> {
 // Persistence
 // ---------------------------------------------------------------------------
 
-function persistCase(fraudCase: FraudCase) {
+function persistCase(fraudCase: FraudCase): Promise<void> {
   const owner = userId
-  if (!owner) return
-  void supabase
-    .from("cases")
-    .upsert(caseToRow(fraudCase, owner), { onConflict: "user_id,id" })
-    .then(({ error }) => {
-      if (error) reportSyncError("the case", describeError(error))
-    })
+  if (!owner) return Promise.resolve()
+  return Promise.resolve(
+    supabase
+      .from("cases")
+      .upsert(caseToRow(fraudCase, owner), { onConflict: "user_id,id" })
+      .then(({ error }) => {
+        if (error) reportSyncError("the case", describeError(error))
+      }),
+  )
 }
 
-function persistAlert(alert: CaseAlert) {
+function persistAlert(alert: CaseAlert): Promise<void> {
   const owner = userId
-  if (!owner) return
-  void supabase
-    .from("alerts")
+  if (!owner) return Promise.resolve()
+  return Promise.resolve(
+    supabase
+      .from("alerts")
     .upsert(
       {
         user_id: owner,
@@ -204,9 +207,10 @@ function persistAlert(alert: CaseAlert) {
       },
       { onConflict: "user_id,id" },
     )
-    .then(({ error }) => {
-      if (error) reportSyncError("the alert", describeError(error))
-    })
+      .then(({ error }) => {
+        if (error) reportSyncError("the alert", describeError(error))
+      }),
+  )
 }
 
 function changeCase(id: string, patch: (c: FraudCase) => FraudCase) {
@@ -215,7 +219,7 @@ function changeCase(id: string, patch: (c: FraudCase) => FraudCase) {
   const next = patch(target)
   cases = cases.map((c) => (c.id === id ? next : c))
   emit()
-  persistCase(next)
+  void persistCase(next)
 }
 
 /**
@@ -223,8 +227,8 @@ function changeCase(id: string, patch: (c: FraudCase) => FraudCase) {
  * creates an alert record — never a fake/animated notification, and never
  * a real-world push/email/SMS (not supported by this prototype).
  */
-function maybeCreateAlert(fraudCase: FraudCase) {
-  if (fraudCase.riskLevel !== "HIGH" && fraudCase.riskLevel !== "CRITICAL") return
+function maybeCreateAlert(fraudCase: FraudCase): Promise<void> {
+  if (fraudCase.riskLevel !== "HIGH" && fraudCase.riskLevel !== "CRITICAL") return Promise.resolve()
   const reason =
     fraudCase.riskBreakdown && fraudCase.riskBreakdown.length > 0
       ? `Contributing signals: ${fraudCase.riskBreakdown
@@ -241,18 +245,24 @@ function maybeCreateAlert(fraudCase: FraudCase) {
     createdAt: fraudCase.createdAt,
   }
   alerts = [alert, ...alerts]
-  persistAlert(alert)
+  return persistAlert(alert)
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export function addCase(fraudCase: FraudCase) {
+/**
+ * Adds the case locally right away and resolves once it is saved to the
+ * database. Callers that show a "saved" confirmation should await it, so leaving
+ * the page straight after cannot cancel the save.
+ */
+export async function addCase(fraudCase: FraudCase): Promise<void> {
   cases = [fraudCase, ...cases]
-  persistCase(fraudCase)
-  maybeCreateAlert(fraudCase)
+  const saved = persistCase(fraudCase)
+  const alertSaved = maybeCreateAlert(fraudCase)
   emit()
+  await Promise.all([saved, alertSaved])
 }
 
 export function updateCaseStatus(id: string, status: CaseStatus) {

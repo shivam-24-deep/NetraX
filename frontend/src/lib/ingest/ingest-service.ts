@@ -67,6 +67,6 @@ export async function ingestSharedContent(payload: IngestPayload, handlers: Inve
   }
 
   const fraudCase: FraudCase = { ...result, source: payload.source }
-  addCase(fraudCase)
+  await addCase(fraudCase)
   return { status: "completed", inputType, fraudCase }
 }

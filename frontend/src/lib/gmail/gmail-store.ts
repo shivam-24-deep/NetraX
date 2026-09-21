@@ -113,7 +113,7 @@ export async function scanGmailNow(): Promise<{ scanned: number; flagged: number
       const hash = await sha256Hex(item.rawEmail)
       if (findCaseByEmailHash(hash)) continue // already investigated — idempotency, same as every other entry point
       const fraudCase = await buildFraudCaseFromEmailResult(item.rawEmail, item.result, "gmail_auto")
-      addCase(fraudCase)
+      await addCase(fraudCase)
       flagged += 1
       // Every auto-created case gets a visible toast (not just HIGH/CRITICAL) — a
       // silent background poll finding something is exactly the case a user is
